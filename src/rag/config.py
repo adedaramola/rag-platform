@@ -66,9 +66,22 @@ class Settings(BaseSettings):
     langfuse_secret_key: SecretStr | None = None
     langfuse_host: str = "https://cloud.langfuse.com"
 
+    # Semantic cache
+    # 'none'   — disabled (default, zero overhead)
+    # 'memory' — in-memory LRU, lost on restart, no infrastructure required
+    # 'redis'  — Redis-backed, persistent; requires STRATUM_REDIS_URL
+    cache_backend: Literal["none", "memory", "redis"] = "none"
+    cache_similarity_threshold: float = 0.95  # cosine similarity required for a hit
+    cache_max_size: int = 1000  # memory backend only: max entries before LRU eviction
+    cache_ttl_seconds: int | None = None  # redis backend only: None = no expiry
+    redis_url: SecretStr | None = None  # e.g. redis://user:pass@host:6379
+
     # Secrets
     anthropic_api_key: SecretStr
     openai_api_key: SecretStr | None = None  # required when embed_backend="openai"
+    # When set, all /query and /metrics requests must include X-API-Key: <value>.
+    # Leave unset (default) in local dev — auth is skipped entirely when None.
+    api_key: SecretStr | None = None
 
     model_config = SettingsConfigDict(
         env_prefix="STRATUM_",

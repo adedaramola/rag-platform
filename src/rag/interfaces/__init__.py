@@ -1,5 +1,6 @@
 """Public re-exports for the interfaces package."""
 
+from rag.interfaces.cache import SemanticCacheProtocol
 from rag.interfaces.embedder import EmbedderProtocol
 from rag.interfaces.generator import CitationRef, CitedAnswer, GeneratorProtocol
 from rag.interfaces.retriever import RetrievedChunk, RetrieverProtocol
@@ -14,4 +15,5 @@ __all__ = [
     "GeneratorProtocol",
     "RetrievedChunk",
     "RetrieverProtocol",
+    "SemanticCacheProtocol",
 ]

@@ -158,7 +158,7 @@ def mock_pipeline(mock_store: MockStore, mock_embedder: MockEmbedder) -> RAGPipe
             top_k_rerank=3,
         )
     generator = MockGenerator()
-    return RAGPipeline(retriever=retriever, generator=generator)  # type: ignore[arg-type]
+    return RAGPipeline(retriever=retriever, generator=generator, embedder=mock_embedder)
 
 
 @pytest.fixture
@@ -170,7 +170,7 @@ def settings() -> Settings:
         anthropic_api_key=SecretStr("test-anthropic-key"),
         openai_api_key=SecretStr("test-openai-key"),
         eval_warn_only=True,
-    )  # type: ignore[call-arg]
+    )
 
 
 # ---------------------------------------------------------------------------

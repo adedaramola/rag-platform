@@ -13,6 +13,8 @@ from typing import Any
 import structlog
 
 from rag.config import Settings
+from rag.interfaces.cache import SemanticCacheProtocol
+from rag.interfaces.embedder import EmbedderProtocol
 from rag.interfaces.generator import CitedAnswer, GeneratorProtocol
 from rag.interfaces.retriever import RetrieverProtocol
 
@@ -28,18 +30,32 @@ def _default_tracer() -> Any:
 
 @dataclass
 class RAGPipeline:
-    """Assembled query pipeline. Holds a retriever and generator, both as Protocols."""
+    """Assembled query pipeline. Holds a retriever, generator, and optional cache."""
 
     retriever: RetrieverProtocol
     generator: GeneratorProtocol
+    embedder: EmbedderProtocol
     tracer: Any = field(default_factory=_default_tracer)
+    cache: SemanticCacheProtocol | None = None
 
     def query(self, question: str) -> CitedAnswer:
         """Run the full RAG pipeline: retrieve context then generate a cited answer.
 
-        Wraps both steps in Langfuse spans when tracing is enabled. Falls back
-        transparently to no-op spans when Langfuse is not configured.
+        When a semantic cache is configured, embeds the query and checks the cache
+        first. A cache hit skips retrieval and generation entirely. A miss runs the
+        full pipeline and stores the result for future hits.
+
+        Wraps retrieval and generation in Langfuse spans when tracing is enabled.
         """
+        if self.cache is not None:
+            query_embedding = self.embedder.embed(question)
+            cached = self.cache.get(query_embedding)
+            if cached is not None:
+                logger.info("semantic_cache_hit", question=question[:80])
+                return cached
+        else:
+            query_embedding = None
+
         with self.tracer.trace("query", input=question) as span:
             with span.span("retrieval") as s:
                 chunks = self.retriever.retrieve(question)
@@ -48,6 +64,10 @@ class RAGPipeline:
                 answer = self.generator.generate(question, chunks)
                 s.update(output={"citations": len(answer.citations)})
         self.tracer.flush()
+
+        if self.cache is not None and query_embedding is not None:
+            self.cache.set(query_embedding, answer)
+
         return answer
 
     def pipeline_fn(self, question: str) -> dict[str, Any]:
@@ -65,6 +85,7 @@ def build_pipeline(settings: Settings) -> RAGPipeline:
     All downstream code works against Protocols — swap implementations by
     changing Settings env vars, not by editing call sites.
     """
+    from rag.cache.factory import get_cache  # noqa: PLC0415
     from rag.generation.generator import CitationGroundedGenerator  # noqa: PLC0415
     from rag.ingestion.embedder import get_embedder  # noqa: PLC0415
     from rag.retrieval.hybrid import HybridRetriever  # noqa: PLC0415
@@ -85,6 +106,15 @@ def build_pipeline(settings: Settings) -> RAGPipeline:
         api_key=settings.anthropic_api_key.get_secret_value(),
     )
     tracer = get_tracer(settings)
+    cache = get_cache(settings)
     if tracer.enabled:
         logger.info("tracing_enabled")
-    return RAGPipeline(retriever=retriever, generator=generator, tracer=tracer)
+    if cache is not None:
+        logger.info("semantic_cache_enabled", backend=settings.cache_backend)
+    return RAGPipeline(
+        retriever=retriever,
+        generator=generator,
+        embedder=embedder,
+        tracer=tracer,
+        cache=cache,
+    )

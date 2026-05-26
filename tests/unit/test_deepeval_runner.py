@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,17 +18,18 @@ from rag.evaluation.deepeval_runner import (
     _load_golden,
     build_judge,
 )
+from rag.exceptions import ConfigurationError
 
 
-def _settings(**kwargs: object) -> Settings:
-    return Settings(  # type: ignore[call-arg]
+def _settings(**kwargs: Any) -> Settings:
+    return Settings(
         anthropic_api_key=SecretStr("test"),
         openai_api_key=SecretStr("test-openai"),
         **kwargs,
     )
 
 
-def _write_golden(path: Path, pairs: list[dict]) -> None:
+def _write_golden(path: Path, pairs: list[dict[str, Any]]) -> None:
     with path.open("w") as f:
         for pair in pairs:
             f.write(json.dumps(pair) + "\n")
@@ -48,14 +50,14 @@ def test_build_judge_ollama_returns_model_with_correct_name() -> None:
 def test_build_judge_openai_missing_key_raises() -> None:
     s = _settings(eval_judge_backend="openai")
     object.__setattr__(s, "openai_api_key", None)
-    with pytest.raises(ValueError, match="STRATUM_OPENAI_API_KEY"):
+    with pytest.raises(ConfigurationError, match="STRATUM_OPENAI_API_KEY"):
         build_judge(s)
 
 
 def test_build_judge_unknown_backend_raises() -> None:
     s = _settings()
     object.__setattr__(s, "eval_judge_backend", "unknown")
-    with pytest.raises(ValueError, match="unknown"):
+    with pytest.raises(ConfigurationError, match="unknown"):
         build_judge(s)
 
 
@@ -194,7 +196,7 @@ def test_write_report_includes_judge_metadata() -> None:
 def test_build_test_cases_returns_one_per_pair() -> None:
     calls: list[str] = []
 
-    def mock_fn(q: str) -> dict:
+    def mock_fn(q: str) -> dict[str, Any]:
         calls.append(q)
         return {"actual_output": f"answer to {q}", "retrieval_context": ["ctx"]}
 
@@ -210,7 +212,7 @@ def test_build_test_cases_returns_one_per_pair() -> None:
 
 
 def test_build_test_cases_handles_pipeline_failure() -> None:
-    def failing_fn(q: str) -> dict:
+    def failing_fn(q: str) -> dict[str, Any]:
         raise RuntimeError("pipeline down")
 
     runner = DeepEvalRunner(pipeline_fn=failing_fn, warn_only=True)
@@ -230,7 +232,7 @@ def test_build_test_cases_handles_pipeline_failure() -> None:
 def test_run_returns_eval_result() -> None:
     """run() loads golden data, calls pipeline, returns EvalResult."""
 
-    def mock_fn(q: str) -> dict:
+    def mock_fn(q: str) -> dict[str, Any]:
         return {"actual_output": "answer", "retrieval_context": ["context"]}
 
     runner = DeepEvalRunner(
@@ -261,7 +263,7 @@ def test_run_returns_eval_result() -> None:
 
 
 def test_run_marks_failed_when_below_threshold() -> None:
-    def mock_fn(q: str) -> dict:
+    def mock_fn(q: str) -> dict[str, Any]:
         return {"actual_output": "answer", "retrieval_context": ["context"]}
 
     runner = DeepEvalRunner(

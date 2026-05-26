@@ -33,7 +33,7 @@ from typing import Any
 import structlog
 
 from rag.config import Settings
-from rag.exceptions import EvaluationError, ThresholdViolationError
+from rag.exceptions import ConfigurationError, EvaluationError, ThresholdViolationError
 
 logger = structlog.get_logger(__name__)
 
@@ -78,12 +78,14 @@ def build_judge(settings: Settings) -> Any:
         )
     if settings.eval_judge_backend == "openai":
         if settings.openai_api_key is None:
-            raise ValueError("STRATUM_OPENAI_API_KEY is required when eval_judge_backend=openai")
+            raise ConfigurationError(
+                "STRATUM_OPENAI_API_KEY is required when eval_judge_backend=openai"
+            )
         return GPTModel(
             model=settings.eval_judge_openai_model,
             api_key=settings.openai_api_key.get_secret_value(),
         )
-    raise ValueError(f"Unknown eval judge backend: {settings.eval_judge_backend}")
+    raise ConfigurationError(f"Unknown eval judge backend: {settings.eval_judge_backend}")
 
 
 # ---------------------------------------------------------------------------

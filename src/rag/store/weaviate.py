@@ -19,7 +19,7 @@ from typing import Any
 
 import structlog
 
-from rag.exceptions import ConnectionError, SchemaError, StoreError
+from rag.exceptions import SchemaError, StoreConnectionError, StoreError
 from rag.interfaces.store import Chunk
 
 logger = structlog.get_logger(__name__)
@@ -43,7 +43,7 @@ class WeaviateStore:
             self._ensure_schema()
             logger.info("weaviate_connected", host=host, port=port)
         except Exception as exc:
-            raise ConnectionError(host=host, port=port) from exc
+            raise StoreConnectionError(host=host, port=port) from exc
 
     def _ensure_schema(self) -> None:
         """Create collections if they don't already exist (idempotent)."""

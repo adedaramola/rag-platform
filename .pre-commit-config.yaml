@@ -7,9 +7,15 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: check-merge-conflict
+      - id: detect-private-key
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.9
+    rev: v0.15.14
     hooks:
       - id: ruff
         args: [--fix]
@@ -23,5 +29,8 @@ repos:
         additional_dependencies:
           - pydantic-settings>=2.3.0
           - structlog>=24.1.0
+          - pytest>=8.2.0
+          - numpy>=1.26.0
           - types-PyYAML
           - types-beautifulsoup4
+          - types-redis

@@ -22,7 +22,7 @@ from typing import Any
 import numpy as np
 import structlog
 
-from rag.exceptions import ConnectionError, StoreError
+from rag.exceptions import StoreConnectionError, StoreError
 from rag.interfaces.store import Chunk
 
 logger = structlog.get_logger(__name__)
@@ -64,7 +64,7 @@ class ChromaStore:
                 collection=self._collection_name,
             )
         except Exception as exc:
-            raise ConnectionError(host="local", port=0) from exc
+            raise StoreConnectionError(host="local", port=0) from exc
 
     def upsert_chunks(
         self,

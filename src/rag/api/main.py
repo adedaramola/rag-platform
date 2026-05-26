@@ -2,6 +2,13 @@
 
 The pipeline — including cross-encoder model load and store connection — is
 initialised once at startup via the lifespan context manager, not on first request.
+
+Security:
+  - /health is open (required for ALB health checks).
+  - /query and /metrics require X-API-Key when STRATUM_API_KEY is configured.
+    When STRATUM_API_KEY is unset the check is skipped (safe for local dev).
+  - /query is rate-limited to 10 requests/minute per API key (or client IP as
+    fallback). Exceeding the limit returns HTTP 429.
 """
 
 from __future__ import annotations
@@ -12,10 +19,14 @@ import threading
 import time
 from collections import deque
 from collections.abc import AsyncGenerator
+from typing import Annotated
 
 import structlog
-from fastapi import FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Security, status
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from rag.config import get_settings
 from rag.exceptions import RAGError
@@ -62,6 +73,9 @@ class MetricsResponse(BaseModel):
     p95_latency_ms: float | None  # None when fewer than 20 queries recorded
     avg_cost_usd: float | None  # None when no token data available
     citation_coverage: float | None  # fraction of queries with ≥1 citation; None when 0 queries
+    cache_hit_count: int = 0
+    cache_miss_count: int = 0
+    cache_hit_rate: float | None = None  # None when cache disabled or no lookups yet
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +142,49 @@ class _Metrics:
 
 
 # ---------------------------------------------------------------------------
+# Security — API key authentication
+# ---------------------------------------------------------------------------
+
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+def _verify_api_key(
+    provided: Annotated[str | None, Security(_api_key_header)] = None,
+) -> None:
+    """Dependency that enforces X-API-Key when STRATUM_API_KEY is configured.
+
+    When api_key is unset in Settings the check is a no-op, preserving
+    zero-friction local development. Set STRATUM_API_KEY to activate.
+    """
+    settings = get_settings()
+    if settings.api_key is None:
+        return
+    if provided != settings.api_key.get_secret_value():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid or missing API key.",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Rate limiting
+# ---------------------------------------------------------------------------
+
+
+def _rate_limit_key(request: Request) -> str:
+    """Rate-limit by API key when present, falling back to client IP."""
+    key = request.headers.get("X-API-Key")
+    if key:
+        return f"apikey:{key}"
+    if request.client:
+        return f"ip:{request.client.host}"
+    return "ip:unknown"
+
+
+limiter = Limiter(key_func=_rate_limit_key)
+
+
+# ---------------------------------------------------------------------------
 # Application lifespan — builds the pipeline once at startup
 # ---------------------------------------------------------------------------
 
@@ -159,6 +216,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type,unused-ignore]
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -170,8 +230,13 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/query", response_model=QueryResponse)
-def query(body: QueryRequest) -> QueryResponse:
+@app.post(
+    "/query",
+    response_model=QueryResponse,
+    dependencies=[Depends(_verify_api_key)],
+)
+@limiter.limit("10/minute")
+def query(request: Request, body: QueryRequest) -> QueryResponse:
     """Run a question through the RAG pipeline and return a cited answer."""
     if _pipeline is None:
         raise HTTPException(
@@ -219,12 +284,31 @@ def query(body: QueryRequest) -> QueryResponse:
         ) from exc
 
 
-@app.get("/metrics", response_model=MetricsResponse)
+@app.get(
+    "/metrics",
+    response_model=MetricsResponse,
+    dependencies=[Depends(_verify_api_key)],
+)
 def metrics() -> MetricsResponse:
     """Operational metrics: P95 latency, average cost per request, citation coverage.
 
     P95 latency is computed over the last 1 000 queries and returns null until
     at least 20 queries have been recorded. Cost and citation coverage return
-    null until the first successful query completes.
+    null until the first successful query completes. Cache stats are included
+    when a semantic cache backend is configured.
     """
-    return _metrics.snapshot()
+    snap = _metrics.snapshot()
+    if _pipeline is not None and _pipeline.cache is not None:
+        hits = _pipeline.cache.hit_count
+        misses = _pipeline.cache.miss_count
+        total = hits + misses
+        return MetricsResponse(
+            total_queries=snap.total_queries,
+            p95_latency_ms=snap.p95_latency_ms,
+            avg_cost_usd=snap.avg_cost_usd,
+            citation_coverage=snap.citation_coverage,
+            cache_hit_count=hits,
+            cache_miss_count=misses,
+            cache_hit_rate=round(hits / total, 4) if total > 0 else None,
+        )
+    return snap

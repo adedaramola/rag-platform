@@ -49,6 +49,10 @@ eval = [
 api = [
   "fastapi>=0.111.0",
   "uvicorn[standard]>=0.30.0",
+  "slowapi>=0.1.9",
+]
+cache = [
+  "redis>=5.0.0",
 ]
 observability = [
   "langfuse>=2.0.0",

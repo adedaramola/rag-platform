@@ -7,18 +7,18 @@ import pytest
 from rag.exceptions import (
     ChunkingError,
     CitationGroundingError,
-    ConnectionError,
     DocumentLoadError,
     EmbeddingError,
     EvaluationError,
     GenerationError,
-    IndexError,
     IngestionError,
     RAGError,
     RetrievalError,
     SchemaError,
+    StoreConnectionError,
     StoreError,
     ThresholdViolationError,
+    VectorIndexError,
 )
 
 # ---------------------------------------------------------------------------
@@ -85,8 +85,8 @@ def test_embedding_error() -> None:
     assert isinstance(e, RetrievalError)
 
 
-def test_index_error() -> None:
-    e = IndexError(query="q", step="bm25")
+def test_vector_index_error() -> None:
+    e = VectorIndexError(query="q", step="bm25")
     assert isinstance(e, RetrievalError)
 
 
@@ -119,8 +119,8 @@ def test_store_error() -> None:
     assert isinstance(e, RAGError)
 
 
-def test_connection_error() -> None:
-    e = ConnectionError(host="localhost", port=8080)
+def test_store_connection_error() -> None:
+    e = StoreConnectionError(host="localhost", port=8080)
     assert "localhost" in str(e)
     assert "8080" in str(e)
     assert e.host == "localhost"
@@ -128,8 +128,8 @@ def test_connection_error() -> None:
     assert isinstance(e, StoreError)
 
 
-def test_connection_error_custom_message() -> None:
-    e = ConnectionError(host="h", port=9999, message="custom conn error")
+def test_store_connection_error_custom_message() -> None:
+    e = StoreConnectionError(host="h", port=9999, message="custom conn error")
     assert str(e) == "custom conn error"
 
 
