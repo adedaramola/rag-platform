@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
+from pydantic import SecretStr
+
+from rag.config import Settings
+from rag.interfaces.generator import CitationRef, CitedAnswer
 from rag.interfaces.retriever import RetrievedChunk
 from rag.pipeline import RAGPipeline
 
@@ -17,13 +23,13 @@ def test_pipeline_query_returns_cited_answer(mock_pipeline: RAGPipeline) -> None
     """query() returns a CitedAnswer with a non-empty answer."""
     from tests.conftest import MockStore
 
-    store = mock_pipeline.retriever._store  # type: ignore[attr-defined]
+    store = mock_pipeline.retriever._store
     assert isinstance(store, MockStore)
 
     # Seed the store with chunks so retrieval returns results
     from rag.interfaces.store import Chunk
 
-    embedder = mock_pipeline.retriever._embedder  # type: ignore[attr-defined]
+    embedder = mock_pipeline.retriever._embedder
     parent = Chunk(
         id="p1",
         text="parent passage",
@@ -54,8 +60,8 @@ def test_pipeline_fn_returns_deepeval_compatible_dict(mock_pipeline: RAGPipeline
     """pipeline_fn() returns a dict with 'actual_output' and 'retrieval_context' keys."""
     from rag.interfaces.store import Chunk
 
-    store = mock_pipeline.retriever._store  # type: ignore[attr-defined]
-    embedder = mock_pipeline.retriever._embedder  # type: ignore[attr-defined]
+    store = mock_pipeline.retriever._store
+    embedder = mock_pipeline.retriever._embedder
 
     parent = Chunk(
         id="p2",
@@ -81,3 +87,125 @@ def test_pipeline_fn_returns_deepeval_compatible_dict(mock_pipeline: RAGPipeline
     assert "actual_output" in out
     assert "retrieval_context" in out
     assert isinstance(out["retrieval_context"], list)
+
+
+def test_pipeline_query_cache_hit_skips_retrieval_and_generation() -> None:
+    """A semantic cache hit should return immediately without downstream calls."""
+    cached_answer = CitedAnswer(
+        answer="Cached answer [src 1]",
+        citations=[CitationRef(index=1, source="cached.pdf", page=1)],
+        raw_context=[],
+    )
+
+    mock_cache = MagicMock()
+    mock_cache.get.return_value = cached_answer
+    mock_retriever = MagicMock()
+    mock_generator = MagicMock()
+    mock_embedder = MagicMock()
+    mock_embedder.embed.return_value = [0.1, 0.2, 0.3]
+    mock_tracer = MagicMock()
+
+    pipeline = RAGPipeline(
+        retriever=mock_retriever,
+        generator=mock_generator,
+        embedder=mock_embedder,
+        tracer=mock_tracer,
+        cache=mock_cache,
+    )
+
+    result = pipeline.query("cached question")
+
+    assert result is cached_answer
+    mock_embedder.embed.assert_called_once_with("cached question")
+    mock_cache.get.assert_called_once_with([0.1, 0.2, 0.3])
+    mock_retriever.retrieve.assert_not_called()
+    mock_generator.generate.assert_not_called()
+    mock_cache.set.assert_not_called()
+    mock_tracer.trace.assert_not_called()
+    mock_tracer.flush.assert_not_called()
+
+
+def test_pipeline_query_cache_miss_stores_result() -> None:
+    """A cache miss should run the pipeline and persist the generated answer."""
+    mock_cache = MagicMock()
+    mock_cache.get.return_value = None
+    mock_embedder = MagicMock()
+    mock_embedder.embed.return_value = [0.4, 0.5, 0.6]
+    chunks = _make_chunks(2)
+    answer = CitedAnswer(
+        answer="Fresh answer [src 1]",
+        citations=[CitationRef(index=1, source="doc.pdf", page=1)],
+        raw_context=chunks,
+    )
+    mock_retriever = MagicMock()
+    mock_retriever.retrieve.return_value = chunks
+    mock_generator = MagicMock()
+    mock_generator.generate.return_value = answer
+
+    pipeline = RAGPipeline(
+        retriever=mock_retriever,
+        generator=mock_generator,
+        embedder=mock_embedder,
+        cache=mock_cache,
+    )
+
+    result = pipeline.query("fresh question")
+
+    assert result is answer
+    mock_cache.get.assert_called_once_with([0.4, 0.5, 0.6])
+    mock_cache.set.assert_called_once_with([0.4, 0.5, 0.6], answer)
+
+
+def test_build_pipeline_wires_concrete_dependencies() -> None:
+    """build_pipeline should assemble and return a fully wired RAGPipeline."""
+    settings = Settings(
+        anthropic_api_key=SecretStr("anthropic-test"),
+        openai_api_key=SecretStr("openai-test"),
+        cache_backend="memory",
+    )
+    mock_store = object()
+    mock_embedder = object()
+    mock_retriever = object()
+    mock_generator = object()
+    mock_tracer = MagicMock()
+    mock_tracer.enabled = True
+    mock_cache = object()
+
+    with (
+        patch("rag.store.factory.get_store", return_value=mock_store) as get_store,
+        patch("rag.ingestion.embedder.get_embedder", return_value=mock_embedder) as get_embedder,
+        patch("rag.retrieval.hybrid.HybridRetriever", return_value=mock_retriever) as retriever_cls,
+        patch(
+            "rag.generation.generator.CitationGroundedGenerator",
+            return_value=mock_generator,
+        ) as generator_cls,
+        patch("rag.tracing.get_tracer", return_value=mock_tracer) as get_tracer,
+        patch("rag.cache.factory.get_cache", return_value=mock_cache) as get_cache,
+    ):
+        pipeline = RAGPipeline.__module__
+        del pipeline
+        from rag.pipeline import build_pipeline
+
+        built = build_pipeline(settings)
+
+    assert isinstance(built, RAGPipeline)
+    assert built.retriever is mock_retriever
+    assert built.generator is mock_generator
+    assert built.embedder is mock_embedder
+    assert built.tracer is mock_tracer
+    assert built.cache is mock_cache
+    get_store.assert_called_once_with(settings)
+    get_embedder.assert_called_once_with(settings)
+    retriever_cls.assert_called_once_with(
+        store=mock_store,
+        embedder=mock_embedder,
+        reranker_model=settings.reranker_model,
+        top_k_dense=settings.top_k_dense,
+        top_k_rerank=settings.top_k_rerank,
+    )
+    generator_cls.assert_called_once_with(
+        model=settings.llm_model,
+        api_key="anthropic-test",
+    )
+    get_tracer.assert_called_once_with(settings)
+    get_cache.assert_called_once_with(settings)
