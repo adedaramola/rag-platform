@@ -149,7 +149,8 @@ class CitationGroundedGenerator:
         lines: list[str] = []
         for i, chunk in enumerate(chunks, start=1):
             page_label = f" p.{chunk.page}" if chunk.page is not None else ""
-            lines.append(f"[src {i}] ({chunk.source}{page_label})\n{chunk.text}")
+            context_text = chunk.parent_text or chunk.text
+            lines.append(f"[src {i}] ({chunk.source}{page_label})\n{context_text}")
         return "\n\n".join(lines)
 
     @staticmethod

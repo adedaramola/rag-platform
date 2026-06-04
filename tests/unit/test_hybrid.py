@@ -108,10 +108,11 @@ def test_retrieve_empty_store_returns_empty(mock_store: object, mock_embedder: o
 
 
 def test_retrieve_results_have_parent_text(mock_store: object, mock_embedder: object) -> None:
-    """After parent expansion, returned text comes from the parent chunk."""
+    """Parent expansion should preserve child text and carry parent context separately."""
     retriever = _make_retriever(mock_store, mock_embedder)
     _seed_store(mock_store, mock_embedder)
     retriever.build_index(retriever._store.load_bm25_corpus())
 
     results = retriever.retrieve("parent passage topic")
-    assert any("parent passage" in r.text for r in results)
+    assert any("child chunk" in r.text for r in results)
+    assert any((r.parent_text or "").startswith("parent passage") for r in results)

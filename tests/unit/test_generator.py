@@ -15,7 +15,14 @@ from rag.interfaces.retriever import RetrievedChunk
 
 def _chunks() -> list[RetrievedChunk]:
     return [
-        RetrievedChunk(id="1", text="Parent chunk one.", source="doc1.pdf", page=1, score=0.9),
+        RetrievedChunk(
+            id="1",
+            text="Child chunk one.",
+            source="doc1.pdf",
+            page=1,
+            score=0.9,
+            parent_text="Parent chunk one.",
+        ),
         RetrievedChunk(
             id="2",
             text="Web chunk two.",
@@ -38,6 +45,7 @@ def test_build_context_block_formats_pdf_and_web_chunks() -> None:
     block = CitationGroundedGenerator._build_context_block(_chunks())
     assert "[src 1] (doc1.pdf p.1)" in block
     assert "Parent chunk one." in block
+    assert "Child chunk one." not in block
     assert "[src 2] (https://example.com)" in block
     assert "p.None" not in block
 
