@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from rag.exceptions import GenerationError
+from rag.exceptions import CitationGroundingError, GenerationError
 from rag.generation.generator import CitationGroundedGenerator
 from rag.interfaces.generator import CitedAnswer
 from rag.interfaces.retriever import RetrievedChunk
@@ -45,22 +45,58 @@ def test_build_context_block_formats_pdf_and_web_chunks() -> None:
 def test_generate_returns_cited_answer() -> None:
     """Successful generation should return a fully populated CitedAnswer."""
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = _response("Grounded answer [src 1].")
+    mock_client.messages.create.side_effect = [
+        _response("Draft answer [src 1]."),
+        _response("Grounded answer [src 1]."),
+    ]
 
     with patch("anthropic.Anthropic", return_value=mock_client):
-        generator = CitationGroundedGenerator(model="claude-test", api_key="test-key")
+        generator = CitationGroundedGenerator(
+            model="claude-test", api_key="test-key", max_tokens=400
+        )
         result = generator.generate("What happened?", _chunks())
 
     assert isinstance(result, CitedAnswer)
     assert result.answer == "Grounded answer [src 1]."
     assert len(result.citations) == 1
     assert result.citations[0].source == "doc1.pdf"
-    assert result.input_tokens == 12
-    assert result.output_tokens == 7
-    mock_client.messages.create.assert_called_once()
+    assert result.input_tokens == 24
+    assert result.output_tokens == 14
+    assert mock_client.messages.create.call_count == 2
     _, kwargs = mock_client.messages.create.call_args
-    assert kwargs["max_tokens"] == 1024
+    assert kwargs["max_tokens"] == 400
     assert kwargs["temperature"] == 0
+
+
+def test_generate_falls_back_to_cited_draft_when_repair_loses_citations() -> None:
+    """A cited draft should be returned if the repair pass drops citations."""
+    mock_client = MagicMock()
+    mock_client.messages.create.side_effect = [
+        _response("Draft answer [src 1]."),
+        _response("Repair accidentally removed citations."),
+    ]
+
+    with patch("anthropic.Anthropic", return_value=mock_client):
+        generator = CitationGroundedGenerator(model="claude-test", api_key="test-key")
+        result = generator.generate("What happened?", _chunks())
+
+    assert result.answer == "Draft answer [src 1]."
+    assert len(result.citations) == 1
+
+
+def test_generate_raises_when_draft_and_repair_lack_citations() -> None:
+    """An uncited draft and uncited repair should fail closed."""
+    mock_client = MagicMock()
+    mock_client.messages.create.side_effect = [
+        _response("Draft answer without grounding."),
+        _response("Repair answer still has no grounding."),
+    ]
+
+    with patch("anthropic.Anthropic", return_value=mock_client):
+        generator = CitationGroundedGenerator(model="claude-test", api_key="test-key")
+
+    with pytest.raises(CitationGroundingError, match="without valid \\[src N\\] citations"):
+        generator.generate("Unsupported?", _chunks())
 
 
 def test_generate_without_chunks_raises_generation_error() -> None:
@@ -77,10 +113,12 @@ def test_generate_without_chunks_raises_generation_error() -> None:
 def test_generate_wraps_malformed_response_as_generation_error() -> None:
     """Responses without a text block should raise GenerationError."""
     mock_client = MagicMock()
-    mock_client.messages.create.return_value = SimpleNamespace(
-        content=[object()],
-        usage=SimpleNamespace(input_tokens=0, output_tokens=0),
-    )
+    mock_client.messages.create.side_effect = [
+        SimpleNamespace(
+            content=[object()],
+            usage=SimpleNamespace(input_tokens=0, output_tokens=0),
+        )
+    ]
 
     with patch("anthropic.Anthropic", return_value=mock_client):
         generator = CitationGroundedGenerator(model="claude-test", api_key="test-key")

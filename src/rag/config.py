@@ -47,7 +47,7 @@ class Settings(BaseSettings):
 
     # LLM settings
     llm_model: str = "claude-sonnet-4-6"
-    llm_max_tokens: int = 1024
+    llm_max_tokens: int = 400
 
     # Eval settings
     eval_judge_backend: Literal["ollama", "openai"] = "ollama"
