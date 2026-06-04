@@ -37,7 +37,7 @@ class Settings(BaseSettings):
 
     # Retrieval settings
     reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-    top_k_dense: int = 15
+    top_k_dense: int = 20
     top_k_rerank: int = 5
 
     # Chunking settings
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
 
     # LLM settings
     llm_model: str = "claude-sonnet-4-6"
-    llm_max_tokens: int = 250
+    llm_max_tokens: int = 400
 
     # Eval settings
     eval_judge_backend: Literal["ollama", "openai"] = "ollama"
