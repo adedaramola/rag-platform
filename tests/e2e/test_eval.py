@@ -74,7 +74,7 @@ def test_deepeval_thresholds(rag_pipeline: RAGPipeline) -> None:
     Path("reports").mkdir(exist_ok=True)
     runner.write_report(result, settings.eval_report_path)
 
-    if not result.passed:
+    if not result.thresholds_met:
         if settings.eval_warn_only:
             structlog.get_logger().warning(
                 "deepeval_threshold_warnings",

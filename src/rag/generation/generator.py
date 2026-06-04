@@ -27,7 +27,8 @@ SYSTEM_PROMPT = (
     "- If multiple sources support a claim, use [src N, src M].\n"
     "- Do not include any information not present in the provided sources.\n"
     "- If sources are insufficient, say so explicitly — do not speculate.\n"
-    "- Be concise. One well-cited paragraph beats multiple vague ones."
+    "- Answer the question directly in 1 short paragraph, with no preamble.\n"
+    "- Prefer the smallest complete answer that fully addresses the question."
 )
 
 _CITATION_RE = re.compile(r"\[src\s+(\d+)\]")
@@ -39,8 +40,9 @@ class CitationGroundedGenerator:
     Implements GeneratorProtocol. api_key injected — never reads env directly.
     """
 
-    def __init__(self, model: str, api_key: str) -> None:
+    def __init__(self, model: str, api_key: str, max_tokens: int = 1024) -> None:
         self._model = model
+        self._max_tokens = max_tokens
         try:
             import anthropic  # noqa: PLC0415
 
@@ -65,7 +67,8 @@ class CitationGroundedGenerator:
         try:
             response = self._client.messages.create(
                 model=self._model,
-                max_tokens=1024,
+                max_tokens=self._max_tokens,
+                temperature=0,
                 system=SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_message}],
             )

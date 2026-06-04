@@ -104,6 +104,7 @@ def build_pipeline(settings: Settings) -> RAGPipeline:
     generator = CitationGroundedGenerator(
         model=settings.llm_model,
         api_key=settings.anthropic_api_key.get_secret_value(),
+        max_tokens=settings.llm_max_tokens,
     )
     tracer = get_tracer(settings)
     cache = get_cache(settings)

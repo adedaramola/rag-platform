@@ -99,13 +99,20 @@ def test_load_golden_skips_blank_lines() -> None:
 def test_eval_result_defaults() -> None:
     r = EvalResult(scores={"faithfulness": 0.9})
     assert r.passed is True
+    assert r.thresholds_met is True
     assert r.failures == []
     assert r.report_path is None
 
 
 def test_eval_result_with_failures() -> None:
-    r = EvalResult(scores={"faithfulness": 0.7}, failures=["metric X failed"], passed=False)
+    r = EvalResult(
+        scores={"faithfulness": 0.7},
+        failures=["metric X failed"],
+        thresholds_met=False,
+        passed=False,
+    )
     assert not r.passed
+    assert not r.thresholds_met
     assert len(r.failures) == 1
 
 
@@ -165,6 +172,7 @@ def test_write_report_creates_json_file() -> None:
         data = json.loads(out.read_text())
 
     assert data["passed"] is True
+    assert data["thresholds_met"] is True
     assert data["scores"]["faithfulness"] == 0.85
     assert "timestamp" in data
     assert "deepeval_version" in data
@@ -282,5 +290,31 @@ def test_run_marks_failed_when_below_threshold() -> None:
         ):
             result = runner.run(golden)
 
+    assert result.thresholds_met is False
+    assert result.passed is True
+    assert len(result.failures) == 1
+
+
+def test_run_warn_only_false_marks_failed_when_below_threshold() -> None:
+    def mock_fn(q: str) -> dict[str, Any]:
+        return {"actual_output": "answer", "retrieval_context": ["context"]}
+
+    runner = DeepEvalRunner(
+        pipeline_fn=mock_fn,
+        thresholds={"faithfulness": 0.90},
+        warn_only=False,
+    )
+
+    with tempfile.TemporaryDirectory() as d:
+        golden = Path(d) / "golden.jsonl"
+        _write_golden(golden, [{"question": "Q1", "ground_truth": "A1"}])
+
+        with patch(
+            "rag.evaluation.deepeval_runner.DeepEvalRunner._evaluate",
+            return_value={"faithfulness": 0.70},
+        ):
+            result = runner.run(golden)
+
+    assert result.thresholds_met is False
     assert result.passed is False
     assert len(result.failures) == 1

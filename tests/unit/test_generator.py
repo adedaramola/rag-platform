@@ -58,6 +58,9 @@ def test_generate_returns_cited_answer() -> None:
     assert result.input_tokens == 12
     assert result.output_tokens == 7
     mock_client.messages.create.assert_called_once()
+    _, kwargs = mock_client.messages.create.call_args
+    assert kwargs["max_tokens"] == 1024
+    assert kwargs["temperature"] == 0
 
 
 def test_generate_without_chunks_raises_generation_error() -> None:

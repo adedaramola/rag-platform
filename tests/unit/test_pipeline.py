@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 from pydantic import SecretStr
@@ -23,13 +24,14 @@ def test_pipeline_query_returns_cited_answer(mock_pipeline: RAGPipeline) -> None
     """query() returns a CitedAnswer with a non-empty answer."""
     from tests.conftest import MockStore
 
-    store = mock_pipeline.retriever._store
+    retriever = mock_pipeline.retriever
+    store = cast(Any, retriever)._store
     assert isinstance(store, MockStore)
 
     # Seed the store with chunks so retrieval returns results
     from rag.interfaces.store import Chunk
 
-    embedder = mock_pipeline.retriever._embedder
+    embedder = cast(Any, retriever)._embedder
     parent = Chunk(
         id="p1",
         text="parent passage",
@@ -60,8 +62,9 @@ def test_pipeline_fn_returns_deepeval_compatible_dict(mock_pipeline: RAGPipeline
     """pipeline_fn() returns a dict with 'actual_output' and 'retrieval_context' keys."""
     from rag.interfaces.store import Chunk
 
-    store = mock_pipeline.retriever._store
-    embedder = mock_pipeline.retriever._embedder
+    retriever = mock_pipeline.retriever
+    store = cast(Any, retriever)._store
+    embedder = cast(Any, retriever)._embedder
 
     parent = Chunk(
         id="p2",
@@ -206,6 +209,7 @@ def test_build_pipeline_wires_concrete_dependencies() -> None:
     generator_cls.assert_called_once_with(
         model=settings.llm_model,
         api_key="anthropic-test",
+        max_tokens=settings.llm_max_tokens,
     )
     get_tracer.assert_called_once_with(settings)
     get_cache.assert_called_once_with(settings)

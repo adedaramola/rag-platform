@@ -51,6 +51,7 @@ class EvalResult:
 
     scores: dict[str, float]
     failures: list[str] = field(default_factory=list)
+    thresholds_met: bool = True
     passed: bool = True
     report_path: Path | None = None
 
@@ -136,9 +137,16 @@ class DeepEvalRunner:
         result = EvalResult(
             scores=scores,
             failures=failures,
-            passed=len(failures) == 0,
+            thresholds_met=len(failures) == 0,
+            passed=len(failures) == 0 or self._warn_only,
         )
-        logger.info("deepeval_eval_complete", scores=scores, passed=result.passed)
+        logger.info(
+            "deepeval_eval_complete",
+            scores=scores,
+            thresholds_met=result.thresholds_met,
+            passed=result.passed,
+            warn_only=self._warn_only,
+        )
         return result
 
     def write_report(self, result: EvalResult, output_path: Path) -> None:
@@ -160,6 +168,7 @@ class DeepEvalRunner:
         report = {
             "scores": result.scores,
             "failures": result.failures,
+            "thresholds_met": result.thresholds_met,
             "passed": result.passed,
             "warn_only": self._warn_only,
             "judge_backend": judge_backend,
