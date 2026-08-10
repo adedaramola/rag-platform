@@ -140,20 +140,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:  # noqa: ARG001
     """Build the RAGPipeline on startup; release on shutdown."""
     global _pipeline
     settings = get_settings()
-    logger.info("stratum_api_startup", store_backend=settings.store_backend)
+    logger.info("rag_platform_api_startup", store_backend=settings.store_backend)
     try:
         _pipeline = build_pipeline(settings)
-        logger.info("stratum_api_ready")
+        logger.info("rag_platform_api_ready")
     except Exception as exc:
-        logger.error("stratum_api_startup_failed", error=str(exc))
+        logger.error("rag_platform_api_startup_failed", error=str(exc))
         raise
     yield
     _pipeline = None
-    logger.info("stratum_api_shutdown")
+    logger.info("rag_platform_api_shutdown")
 
 
 app = FastAPI(
-    title="Stratum RAG API",
+    title="RAG Platform RAG API",
     description="Citation-grounded document Q&A powered by hybrid retrieval.",
     version="0.1.0",
     lifespan=lifespan,

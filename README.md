@@ -1,7 +1,7 @@
-# Stratum
+# RAG Platform
 
-[![CI](https://github.com/adedaramola/stratum/actions/workflows/ci.yml/badge.svg)](https://github.com/adedaramola/stratum/actions/workflows/ci.yml)
-[![DeepEval](https://github.com/adedaramola/stratum/actions/workflows/eval.yml/badge.svg)](https://github.com/adedaramola/stratum/actions/workflows/eval.yml)
+[![CI](https://github.com/adedaramola/rag-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/adedaramola/rag-platform/actions/workflows/ci.yml)
+[![DeepEval](https://github.com/adedaramola/rag-platform/actions/workflows/eval.yml/badge.svg)](https://github.com/adedaramola/rag-platform/actions/workflows/eval.yml)
 
 A production-grade domain-specific RAG engine — ask questions against your documents and receive precise, citation-grounded answers.
 
@@ -46,7 +46,7 @@ Document ingestion:
 | Retrieval fusion | BM25 + ANN → RRF (K=60) | Same | Parameter-free, robust to miscalibrated retrievers |
 | Re-ranker | cross-encoder/ms-marco-MiniLM-L-6-v2 | Same | Strong precision at low latency (~50ms CPU) |
 | LLM | claude-sonnet-4-6 | Same | Citation-enforcing prompt, structured output |
-| Tracing | Langfuse (opt-in no-op) | Langfuse cloud | Set `STRATUM_LANGFUSE_SECRET_KEY` to enable; system runs identically without it |
+| Tracing | Langfuse (opt-in no-op) | Langfuse cloud | Set `RAG_PLATFORM_LANGFUSE_SECRET_KEY` to enable; system runs identically without it |
 | API | FastAPI + uvicorn | Same | `/query` endpoint, `/health` liveness probe |
 | UI | Streamlit | Same | Chat interface with citation rendering |
 | Eval | DeepEval + Ollama judge | Same | Pytest-native, zero API cost for local judge |
@@ -62,32 +62,32 @@ Document ingestion:
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/adedaramola/stratum.git
-cd stratum
+git clone https://github.com/adedaramola/rag-platform.git
+cd rag-platform
 pip install -e ".[dev]"
 ```
 
 ### 2. Configure
 
 ```bash
-# .env (create in the stratum/ directory)
-STRATUM_ANTHROPIC_API_KEY=sk-ant-...
+# .env (create in the rag-platform/ directory)
+RAG_PLATFORM_ANTHROPIC_API_KEY=sk-ant-...
 
 # Optional — defaults to OpenAI embeddings if omitted
-STRATUM_OPENAI_API_KEY=sk-proj-...
+RAG_PLATFORM_OPENAI_API_KEY=sk-proj-...
 ```
 
 ### 3. Ingest documents
 
 ```bash
 # Single PDF
-stratum-ingest --source /path/to/document.pdf
+rag-platform-ingest --source /path/to/document.pdf
 
 # Directory of PDFs
-stratum-ingest --source /path/to/docs/
+rag-platform-ingest --source /path/to/docs/
 
 # Web page
-stratum-ingest --source https://example.com/page
+rag-platform-ingest --source https://example.com/page
 ```
 
 ### 4. Start the API
@@ -136,7 +136,7 @@ curl -X POST http://localhost:8000/query \
 pip install -e ".[local-embed]"
 
 # .env
-STRATUM_EMBED_BACKEND=local
+RAG_PLATFORM_EMBED_BACKEND=local
 ```
 
 Requires ~2GB RAM. Uses `BAAI/bge-large-en-v1.5` (1024-dim).
@@ -147,7 +147,7 @@ Requires ~2GB RAM. Uses `BAAI/bge-large-en-v1.5` (1024-dim).
 make docker-up   # starts Weaviate on localhost:8080
 
 # .env
-STRATUM_STORE_BACKEND=weaviate
+RAG_PLATFORM_STORE_BACKEND=weaviate
 ```
 
 Re-ingest after switching backends — vectors are not portable between Chroma and Weaviate.
@@ -156,8 +156,8 @@ Re-ingest after switching backends — vectors are not portable between Chroma a
 
 ```bash
 # .env
-STRATUM_EVAL_JUDGE_BACKEND=openai
-STRATUM_OPENAI_API_KEY=sk-proj-...
+RAG_PLATFORM_EVAL_JUDGE_BACKEND=openai
+RAG_PLATFORM_OPENAI_API_KEY=sk-proj-...
 ```
 
 Default judge is local Ollama (`llama3.1:8b`) at zero API cost.
@@ -168,10 +168,10 @@ Default judge is local Ollama (`llama3.1:8b`) at zero API cost.
 pip install -e ".[observability]"
 
 # .env
-STRATUM_LANGFUSE_PUBLIC_KEY=pk-lf-...
-STRATUM_LANGFUSE_SECRET_KEY=sk-lf-...
+RAG_PLATFORM_LANGFUSE_PUBLIC_KEY=pk-lf-...
+RAG_PLATFORM_LANGFUSE_SECRET_KEY=sk-lf-...
 # Optional — defaults to Langfuse cloud
-STRATUM_LANGFUSE_HOST=https://cloud.langfuse.com
+RAG_PLATFORM_LANGFUSE_HOST=https://cloud.langfuse.com
 ```
 
 When keys are absent the system runs identically — all trace calls are no-ops.
@@ -190,20 +190,20 @@ The `terraform/` directory provisions a production-ready deployment on AWS.
 Internet
    │
    ▼
-ALB (stratum-prod-alb)
+ALB (rag-platform-prod-alb)
    ├── :80   → FastAPI  (port 8000)
    └── :8501 → Streamlit UI (port 8501)
    │
    ▼
-EC2 t3.medium (stratum-prod-api)
-   ├── stratum-api.service  (uvicorn, 2 workers)
-   └── stratum-ui.service   (streamlit)
+EC2 t3.medium (rag-platform-prod-api)
+   ├── rag-platform-api.service  (uvicorn, 2 workers)
+   └── rag-platform-ui.service   (streamlit)
    │
    ▼ (private network)
-EC2 t3.medium (stratum-prod-weaviate)
+EC2 t3.medium (rag-platform-prod-weaviate)
    └── Weaviate 1.27.0 (Docker, 20GB EBS data volume)
 
-S3 (stratum-prod-docs-*)
+S3 (rag-platform-prod-docs-*)
    └── Raw document storage
 ```
 
@@ -244,13 +244,13 @@ aws s3 cp my-document.pdf s3://$(terraform output -raw documents_bucket_name)/ra
 ssh -i ~/.ssh/<key>.pem ec2-user@$(terraform output -raw api_instance_public_ip)
 
 # 3. Download and ingest
-sudo aws s3 cp s3://<bucket>/raw/my-document.pdf /opt/stratum/data/raw/my-document.pdf
-sudo chown stratum:stratum /opt/stratum/data/raw/my-document.pdf
-sudo -u stratum bash -c 'cd /opt/stratum && /opt/stratum/.venv/bin/stratum-ingest \
-  --source /opt/stratum/data/raw/my-document.pdf'
+sudo aws s3 cp s3://<bucket>/raw/my-document.pdf /opt/rag-platform/data/raw/my-document.pdf
+sudo chown rag-platform:rag-platform /opt/rag-platform/data/raw/my-document.pdf
+sudo -u rag-platform bash -c 'cd /opt/rag-platform && /opt/rag-platform/.venv/bin/rag-platform-ingest \
+  --source /opt/rag-platform/data/raw/my-document.pdf'
 
 # 4. Restart services to pick up the new BM25 corpus
-sudo systemctl restart stratum-api stratum-ui
+sudo systemctl restart rag-platform-api rag-platform-ui
 ```
 
 ### Tear down
@@ -284,7 +284,7 @@ terraform destroy
 ## Project Layout
 
 ```
-stratum/
+rag-platform/
 ├── src/rag/                  # All package code (PEP 517 src layout)
 │   ├── interfaces/           # typing.Protocol definitions — the public contract
 │   ├── ingestion/            # Loaders, chunker, embedders
@@ -293,7 +293,7 @@ stratum/
 │   ├── generation/           # CitationGroundedGenerator
 │   ├── evaluation/           # DeepEval harness + Ollama judge adapter
 │   ├── api/                  # FastAPI app (main.py)
-│   ├── scripts/              # CLI entry points (stratum-ingest)
+│   ├── scripts/              # CLI entry points (rag-platform-ingest)
 │   ├── config.py             # Pydantic Settings — one object rules all config
 │   ├── exceptions.py         # Domain exception hierarchy
 │   └── pipeline.py           # RAGPipeline + build_pipeline() factory

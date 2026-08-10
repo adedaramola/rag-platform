@@ -34,7 +34,7 @@ eval:
 	pytest tests/e2e/test_eval.py -v --tb=short --no-cov
 
 ingest:
-	stratum-ingest --source $(SOURCE)
+	rag-platform-ingest --source $(SOURCE)
 
 api:
 	uvicorn rag.api.main:app --reload --host 0.0.0.0 --port 8000

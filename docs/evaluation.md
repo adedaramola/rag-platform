@@ -1,6 +1,6 @@
 # Evaluation Guide
 
-Stratum uses [DeepEval](https://docs.confident-ai.com/) as its evaluation framework.
+RAG Platform uses [DeepEval](https://docs.confident-ai.com/) as its evaluation framework.
 This guide explains what the metrics mean, how to build a golden dataset, and
 how to set defensible thresholds.
 
@@ -85,7 +85,7 @@ make eval
 This runs `pytest tests/e2e/test_eval.py -v --tb=short`.
 
 Prerequisites:
-- `STRATUM_ANTHROPIC_API_KEY` set in `.env`
+- `RAG_PLATFORM_ANTHROPIC_API_KEY` set in `.env`
 - Golden dataset at `data/golden/qa_pairs.jsonl`
 - Documents ingested: `make ingest SOURCE=data/golden/docs/`
 
@@ -93,8 +93,8 @@ Prerequisites:
 - Ollama running locally with the judge model pulled: `make ollama-pull`
 
 **OpenAI judge (used in CI):**
-- `STRATUM_OPENAI_API_KEY` set in `.env`
-- `STRATUM_EVAL_JUDGE_BACKEND=openai` set in `.env` or passed on the command line
+- `RAG_PLATFORM_OPENAI_API_KEY` set in `.env`
+- `RAG_PLATFORM_EVAL_JUDGE_BACKEND=openai` set in `.env` or passed on the command line
 
 Output: `reports/deepeval_report.json` with scores, failures, judge info, and timestamp.
 
@@ -108,10 +108,10 @@ make eval
 
 **OpenAI (higher fidelity):**
 ```bash
-STRATUM_EVAL_JUDGE_BACKEND=openai make eval
+RAG_PLATFORM_EVAL_JUDGE_BACKEND=openai make eval
 ```
-Requires `STRATUM_OPENAI_API_KEY` in `.env`. Uses `gpt-4o-mini` by default
-(`STRATUM_EVAL_JUDGE_OPENAI_MODEL` to override). Costs ~$0.02–0.10 per run at
+Requires `RAG_PLATFORM_OPENAI_API_KEY` in `.env`. Uses `gpt-4o-mini` by default
+(`RAG_PLATFORM_EVAL_JUDGE_OPENAI_MODEL` to override). Costs ~$0.02–0.10 per run at
 100 golden questions.
 
 ---
@@ -132,7 +132,7 @@ likely the root cause — child chunks may be too small to carry sufficient sign
 
 ## 5. Setting Baselines and Thresholds
 
-**Do not set `STRATUM_EVAL_WARN_ONLY=false` until you have empirical baselines.**
+**Do not set `RAG_PLATFORM_EVAL_WARN_ONLY=false` until you have empirical baselines.**
 
 ### Establishing baselines
 1. Ingest your full document corpus.
@@ -145,7 +145,7 @@ likely the root cause — child chunks may be too small to carry sufficient sign
 ### Activating the hard gate
 Once baselines are set:
 ```
-STRATUM_EVAL_WARN_ONLY=false
+RAG_PLATFORM_EVAL_WARN_ONLY=false
 ```
 
 Now threshold violations fail CI. `eval.yml` runs weekly and on manual trigger.
@@ -170,7 +170,7 @@ Now threshold violations fail CI. `eval.yml` runs weekly and on manual trigger.
   is returning some irrelevant passages ahead of relevant ones. Priority fix: reranker tuning.
 - `answer_relevancy` (0.806) and `contextual_recall` (0.923) are comfortably above threshold.
 
-**Next steps before flipping `STRATUM_EVAL_WARN_ONLY=false`:**
+**Next steps before flipping `RAG_PLATFORM_EVAL_WARN_ONLY=false`:**
 1. Run eval ≥2 more times to confirm score stability (LLM judge variance ±0.03–0.05).
 2. If scores are stable, lower thresholds to `mean - 0.05` or improve the pipeline first.
 3. Document updated thresholds here before activating the hard gate.

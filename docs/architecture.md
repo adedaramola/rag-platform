@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-This document records the key architectural decisions made in Stratum, following the
+This document records the key architectural decisions made in RAG Platform, following the
 [ADR format](https://github.com/joelparkerhenderson/architecture-decision-record).
 
 ---
@@ -50,7 +50,7 @@ scale (<10M vectors). Weaviate is the right choice at enterprise scale: it provi
 index tuning, gRPC batch support, multi-tenancy, and a mature operational model.
 
 **Decision:**
-`STRATUM_STORE_BACKEND=chroma|weaviate` selects the backend via environment variable.
+`RAG_PLATFORM_STORE_BACKEND=chroma|weaviate` selects the backend via environment variable.
 A factory function (`store/factory.py`) maps the setting to a concrete implementation.
 All downstream code works against `DocumentStoreProtocol` — the backend is invisible to
 the retriever, generator, and pipeline.
@@ -109,7 +109,7 @@ retrieval indexes automatically on startup with no manual rebuild step.
 
 **Consequences:**
 - ✅ Single source of truth for all retrieval state
-- ✅ Restarts are transparent — no `stratum-ingest --rebuild-bm25` step needed
+- ✅ Restarts are transparent — no `rag-platform-ingest --rebuild-bm25` step needed
 - ✅ Vector index and BM25 corpus always in sync (shared write path)
 - ❌ Adds two methods to the store interface and both implementations
 - ❌ Large corpora incur a JSON serialisation cost on every ingest
@@ -181,13 +181,13 @@ failures don't integrate naturally with CI tooling.
 Use DeepEval with a local Ollama judge (`llama3.1:8b`) as the default for local runs.
 DeepEval is pytest-native (metrics are assertions, failures include diagnostic reasoning),
 has a stable API across minor versions, and supports pluggable judge backends.
-`STRATUM_EVAL_JUDGE_BACKEND=openai` switches to `gpt-4o-mini` for higher-fidelity scoring;
+`RAG_PLATFORM_EVAL_JUDGE_BACKEND=openai` switches to `gpt-4o-mini` for higher-fidelity scoring;
 this is the judge used in the weekly CI gate (Ollama on CPU runners is too slow for 58+
 questions within the 60-minute job timeout).
 
 Four metrics: `FaithfulnessMetric`, `AnswerRelevancyMetric`,
 `ContextualPrecisionMetric`, `ContextualRecallMetric`. Thresholds start in warn-only mode
-(`STRATUM_EVAL_WARN_ONLY=true`) until empirical baselines are established.
+(`RAG_PLATFORM_EVAL_WARN_ONLY=true`) until empirical baselines are established.
 
 **Consequences:**
 - ✅ Pytest-native — failures are first-class CI failures with diagnostic output

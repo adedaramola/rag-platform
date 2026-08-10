@@ -2,9 +2,9 @@
 
 Two backends mirror the store design:
   OpenAIEmbedder — default. No GPU, no large download, ~1s cold start.
-                   Requires STRATUM_OPENAI_API_KEY.
-  BGEEmbedder    — opt-in via STRATUM_EMBED_BACKEND=local.
-                   Requires: pip install 'stratum[local-embed]'
+                   Requires RAG_PLATFORM_OPENAI_API_KEY.
+  BGEEmbedder    — opt-in via RAG_PLATFORM_EMBED_BACKEND=local.
+                   Requires: pip install 'rag-platform[local-embed]'
 
 Both implement EmbedderProtocol identically. Swap via Settings — not via code changes.
 """
@@ -61,7 +61,7 @@ class OpenAIEmbedder:
 class BGEEmbedder:
     """Embed text using a local BGE model via sentence-transformers.
 
-    Implements EmbedderProtocol. Opt-in via STRATUM_EMBED_BACKEND=local.
+    Implements EmbedderProtocol. Opt-in via RAG_PLATFORM_EMBED_BACKEND=local.
     Lazy-loads the model on first call to avoid startup overhead.
     """
 
@@ -96,7 +96,7 @@ class BGEEmbedder:
             from sentence_transformers import SentenceTransformer  # noqa: PLC0415
         except ImportError as exc:
             raise ImportError(
-                "Install local embedding support: pip install 'stratum[local-embed]'"
+                "Install local embedding support: pip install 'rag-platform[local-embed]'"
             ) from exc
         logger.info("bge_model_loading", model=self.model_name)
         self._model = SentenceTransformer(self.model_name)
@@ -107,7 +107,7 @@ def get_embedder(settings: Settings) -> EmbedderProtocol:
     """Factory: return the configured embedder backend."""
     if settings.embed_backend == "openai":
         if settings.openai_api_key is None:
-            raise ValueError("STRATUM_OPENAI_API_KEY is required when embed_backend='openai'")
+            raise ValueError("RAG_PLATFORM_OPENAI_API_KEY is required when embed_backend='openai'")
         return OpenAIEmbedder(
             model=settings.embed_model_openai,
             api_key=settings.openai_api_key.get_secret_value(),

@@ -1,4 +1,4 @@
-# Stratum — AWS Infrastructure
+# RAG Platform — AWS Infrastructure
 
 Provisions a production-ready two-tier deployment on AWS using Terraform.
 
@@ -8,20 +8,20 @@ Provisions a production-ready two-tier deployment on AWS using Terraform.
 Internet
    │
    ▼
-ALB (stratum-prod-alb)
+ALB (rag-platform-prod-alb)
    ├── :80   → FastAPI  (port 8000)
    └── :8501 → Streamlit UI (port 8501)
    │
    ▼
-EC2 t3.small (stratum-prod-api)
-   ├── stratum-api.service  (uvicorn, 2 workers)
-   └── stratum-ui.service   (streamlit)
+EC2 t3.small (rag-platform-prod-api)
+   ├── rag-platform-api.service  (uvicorn, 2 workers)
+   └── rag-platform-ui.service   (streamlit)
    │
    ▼ (private network)
-EC2 t3.medium (stratum-prod-weaviate)
+EC2 t3.medium (rag-platform-prod-weaviate)
    └── Weaviate 1.27.0 (Docker, 20 GB EBS data volume)
 
-S3 (stratum-prod-docs-*)
+S3 (rag-platform-prod-docs-*)
    └── Raw document storage
 ```
 
@@ -59,7 +59,7 @@ api_docs_url             = "http://<alb-dns>/docs"
 ui_url                   = "http://<alb-dns>:8501"
 ssh_api                  = "ssh -i ~/.ssh/<key>.pem ec2-user@<ip>"
 ssh_weaviate             = "ssh -i ~/.ssh/<key>.pem ec2-user@<ip>"
-documents_bucket_name    = "stratum-prod-docs-<suffix>"
+documents_bucket_name    = "rag-platform-prod-docs-<suffix>"
 ```
 
 ## Ingest documents
@@ -73,13 +73,13 @@ $(terraform output -raw ssh_api)
 
 # 3. Download and ingest
 sudo aws s3 cp s3://$(terraform output -raw documents_bucket_name)/raw/my-doc.pdf \
-  /opt/stratum/data/raw/my-doc.pdf
-sudo chown stratum:stratum /opt/stratum/data/raw/my-doc.pdf
-sudo -u stratum bash -c \
-  'cd /opt/stratum && .venv/bin/stratum-ingest --source /opt/stratum/data/raw/my-doc.pdf'
+  /opt/rag-platform/data/raw/my-doc.pdf
+sudo chown rag-platform:rag-platform /opt/rag-platform/data/raw/my-doc.pdf
+sudo -u rag-platform bash -c \
+  'cd /opt/rag-platform && .venv/bin/rag-platform-ingest --source /opt/rag-platform/data/raw/my-doc.pdf'
 
 # 4. Restart services to reload the BM25 corpus
-sudo systemctl restart stratum-api stratum-ui
+sudo systemctl restart rag-platform-api rag-platform-ui
 ```
 
 ## File overview

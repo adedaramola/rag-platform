@@ -1,7 +1,7 @@
 """CLI entrypoint for document ingestion.
 
 Zero business logic — orchestration only. All logic lives in the rag package.
-Entry point registered in pyproject.toml as: stratum-ingest = "rag.scripts.ingest:main"
+Entry point registered in pyproject.toml as: rag-platform-ingest = "rag.scripts.ingest:main"
 """
 
 from __future__ import annotations
@@ -70,9 +70,11 @@ def _resolve_sources(source: str) -> list[tuple[Any, Any]]:
 
 
 def main() -> None:
-    """CLI entry point for stratum-ingest."""
+    """CLI entry point for rag-platform-ingest."""
     parser = argparse.ArgumentParser(
-        description="Stratum document ingestion — loads, chunks, embeds, and indexes documents."
+        description=(
+            "RAG Platform document ingestion — loads, chunks, embeds, and indexes documents."
+        )
     )
     parser.add_argument(
         "--source",

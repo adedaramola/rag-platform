@@ -9,10 +9,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Central configuration for all Stratum components.
+    """Central configuration for all RAG Platform components.
 
-    All values can be overridden via environment variables prefixed with STRATUM_
-    or via a .env file. Example: STRATUM_STORE_BACKEND=weaviate
+    All values can be overridden via environment variables prefixed with RAG_PLATFORM_
+    or via a .env file. Example: RAG_PLATFORM_STORE_BACKEND=weaviate
     """
 
     # Store backend
@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 
     # Chroma settings (default backend — no Docker required)
     chroma_persist_dir: Path = Path(".chroma")
-    chroma_collection_name: str = "stratum"
+    chroma_collection_name: str = "rag-platform"
 
     # Weaviate settings (production backend)
     weaviate_host: str = "localhost"
@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None  # required when embed_backend="openai"
 
     model_config = SettingsConfigDict(
-        env_prefix="STRATUM_",
+        env_prefix="RAG_PLATFORM_",
         env_file=".env",
         env_file_encoding="utf-8",
     )

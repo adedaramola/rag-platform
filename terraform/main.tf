@@ -15,7 +15,7 @@ terraform {
   # Uncomment to store state in S3 (recommended for team or CI use):
   # backend "s3" {
   #   bucket  = "your-terraform-state-bucket"
-  #   key     = "stratum/prod/terraform.tfstate"
+  #   key     = "rag-platform/prod/terraform.tfstate"
   #   region  = "us-east-1"
   #   encrypt = true
   # }

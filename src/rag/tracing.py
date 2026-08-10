@@ -1,7 +1,7 @@
 """Langfuse tracing integration.
 
-Tracing is fully opt-in: when STRATUM_LANGFUSE_PUBLIC_KEY and
-STRATUM_LANGFUSE_SECRET_KEY are absent, all calls are no-ops and the
+Tracing is fully opt-in: when RAG_PLATFORM_LANGFUSE_PUBLIC_KEY and
+RAG_PLATFORM_LANGFUSE_SECRET_KEY are absent, all calls are no-ops and the
 system runs identically to an untraced deployment.
 
 A tracing failure must never propagate to the user — all Langfuse calls
@@ -142,7 +142,7 @@ def get_tracer(settings: Settings) -> _LangfuseTracer | _NoOpTracer:
     except ImportError:
         logger.warning(
             "langfuse_not_installed",
-            hint="pip install 'stratum[observability]'",
+            hint="pip install 'rag-platform[observability]'",
         )
         return _NoOpTracer()
 

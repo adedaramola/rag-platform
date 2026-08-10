@@ -48,7 +48,7 @@ def test_build_judge_ollama_returns_model_with_correct_name() -> None:
 def test_build_judge_openai_missing_key_raises() -> None:
     s = _settings(eval_judge_backend="openai")
     object.__setattr__(s, "openai_api_key", None)
-    with pytest.raises(ValueError, match="STRATUM_OPENAI_API_KEY"):
+    with pytest.raises(ValueError, match="RAG_PLATFORM_OPENAI_API_KEY"):
         build_judge(s)
 
 

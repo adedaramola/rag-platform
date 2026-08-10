@@ -1,1 +1,1 @@
-"""CLI entry points for Stratum."""
+"""CLI entry points for RAG Platform."""

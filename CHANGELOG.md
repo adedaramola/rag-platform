@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DeepEvalRunner._evaluate()`: all `(test_case, metric)` pairs now run concurrently via
   `ThreadPoolExecutor` with fresh metric instances per task — reduces 58-question eval from
   60+ minutes (timeout) to ~11 minutes
-- `stratum-ingest`: document loading parallelised with `ThreadPoolExecutor`; all child chunks
+- `rag-platform-ingest`: document loading parallelised with `ThreadPoolExecutor`; all child chunks
   across all documents are embedded in a single `embed_batch` call instead of one call per
   document
 - `WeaviateStore.fetch_parents()`: replaced per-ID round-trip loop with a single batch

@@ -2,9 +2,9 @@
 # Weaviate node bootstrap — Amazon Linux 2023
 # Mounts the dedicated EBS data volume, installs Docker, and runs Weaviate.
 set -euo pipefail
-exec > >(tee /var/log/stratum-bootstrap.log | logger -t stratum-weaviate) 2>&1
+exec > >(tee /var/log/rag-platform-bootstrap.log | logger -t rag-platform-weaviate) 2>&1
 
-echo "=== Stratum: Weaviate bootstrap starting ==="
+echo "=== RAG Platform: Weaviate bootstrap starting ==="
 
 # ---------------------------------------------------------------------------
 # 1. Mount the dedicated data EBS volume (/dev/xvdf or NVMe equivalent)
@@ -66,4 +66,4 @@ docker run -d \
   -e LIMIT_RESOURCES=false \
   "cr.weaviate.io/semitechnologies/weaviate:${weaviate_version}"
 
-echo "=== Stratum: Weaviate bootstrap complete ==="
+echo "=== RAG Platform: Weaviate bootstrap complete ==="

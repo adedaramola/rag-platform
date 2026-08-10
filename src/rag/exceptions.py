@@ -2,7 +2,7 @@
 
 
 class RAGError(Exception):
-    """Base exception for all Stratum errors. Stores typed context alongside the message."""
+    """Base exception for all RAG Platform errors. Stores typed context alongside the message."""
 
     def __init__(self, message: str, context: dict[str, object] | None = None) -> None:
         super().__init__(message)

@@ -1,11 +1,11 @@
 """Weaviate store. Production backend — requires Docker.
 
-Activate with STRATUM_STORE_BACKEND=weaviate.
+Activate with RAG_PLATFORM_STORE_BACKEND=weaviate.
 
 Schema uses three collections:
   - DocumentChunk:       child chunks only, HNSW vector index, cosine distance
   - DocumentChunkParent: parent chunks only, no vector index (fetch-by-ID only)
-  - StratumCorpus:       singleton storing BM25 corpus as a JSON blob
+  - RagPlatformCorpus:       singleton storing BM25 corpus as a JSON blob
 
 Parents are never ANN-searched — they live in a collection with no vector index.
 BM25 corpus is stored in Weaviate so that vector state and BM25 state share
@@ -26,7 +26,7 @@ logger = structlog.get_logger(__name__)
 
 _CHILD_COLLECTION = "DocumentChunk"
 _PARENT_COLLECTION = "DocumentChunkParent"
-_CORPUS_COLLECTION = "StratumCorpus"
+_CORPUS_COLLECTION = "RagPlatformCorpus"
 _CORPUS_SINGLETON_ID = "00000000-0000-0000-0000-000000000001"
 
 
@@ -198,7 +198,7 @@ class WeaviateStore:
             raise StoreError(f"Weaviate fetch_parents failed: {exc}") from exc
 
     def store_bm25_corpus(self, corpus: list[dict[str, Any]]) -> None:
-        """Upsert BM25 corpus as a singleton JSON blob in StratumCorpus collection."""
+        """Upsert BM25 corpus as a singleton JSON blob in RagPlatformCorpus collection."""
         try:
             import datetime  # noqa: PLC0415
 
@@ -218,7 +218,7 @@ class WeaviateStore:
             raise StoreError(f"Failed to store BM25 corpus in Weaviate: {exc}") from exc
 
     def load_bm25_corpus(self) -> list[dict[str, Any]]:
-        """Load BM25 corpus from the StratumCorpus singleton. Returns [] if absent."""
+        """Load BM25 corpus from the RagPlatformCorpus singleton. Returns [] if absent."""
         try:
             col = self._client.collections.get(_CORPUS_COLLECTION)
             obj = col.query.fetch_object_by_id(uuid=_CORPUS_SINGLETON_ID)

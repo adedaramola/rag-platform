@@ -1,4 +1,4 @@
-"""Stratum — domain-specific RAG engine with hybrid retrieval and citation-grounded generation.
+"""RAG Platform — domain-specific RAG engine with hybrid retrieval and citation-grounded generation.
 
 Public API:
     build_pipeline  — assemble a production RAGPipeline from Settings
