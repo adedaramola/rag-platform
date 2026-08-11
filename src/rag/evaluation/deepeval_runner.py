@@ -23,6 +23,7 @@ Threshold strategy:
 from __future__ import annotations
 
 import datetime
+import importlib
 import json
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -64,16 +65,18 @@ class EvalResult:
 def build_judge(settings: Settings) -> Any:
     """Return the configured judge model instance.
 
-    Returns DeepEval's native OllamaModel (zero cost) by default; GPTModel when
-    RAG_PLATFORM_EVAL_JUDGE_BACKEND=openai for higher-fidelity scoring.
+    Returns DeepEval's native OllamaModel (zero cost) by default; OpenAIModel
+    when RAG_PLATFORM_EVAL_JUDGE_BACKEND=openai for higher-fidelity scoring.
+    The implementation prefers the modern OpenAIModel class and falls back to
+    GPTModel for older DeepEval releases.
     """
     try:
-        from deepeval.models import GPTModel, OllamaModel  # noqa: PLC0415
+        deepeval_models = importlib.import_module("deepeval.models")
     except ImportError as exc:
         raise ImportError("Install eval dependencies: pip install 'rag-platform[eval]'") from exc
 
     if settings.eval_judge_backend == "ollama":
-        return OllamaModel(
+        return deepeval_models.OllamaModel(
             model=settings.eval_judge_model,
             base_url=settings.eval_ollama_base_url,
         )
@@ -82,7 +85,12 @@ def build_judge(settings: Settings) -> Any:
             raise ConfigurationError(
                 "RAG_PLATFORM_OPENAI_API_KEY is required when eval_judge_backend=openai"
             )
-        return GPTModel(
+
+        openai_model_cls = getattr(deepeval_models, "OpenAIModel", None)
+        if openai_model_cls is None:
+            openai_model_cls = deepeval_models.GPTModel
+
+        return openai_model_cls(
             model=settings.eval_judge_openai_model,
             api_key=settings.openai_api_key.get_secret_value(),
         )

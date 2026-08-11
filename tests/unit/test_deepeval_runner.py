@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
+import types
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -52,6 +54,36 @@ def test_build_judge_openai_missing_key_raises() -> None:
     object.__setattr__(s, "openai_api_key", None)
     with pytest.raises(ConfigurationError, match="RAG_PLATFORM_OPENAI_API_KEY"):
         build_judge(s)
+
+
+def test_build_judge_uses_openai_model_when_available(monkeypatch: pytest.MonkeyPatch) -> None:
+    s = _settings(eval_judge_backend="openai", eval_judge_openai_model="gpt-4o-mini")
+
+    class FakeOpenAIModel:
+        def __init__(self, **kwargs: Any) -> None:
+            self.kwargs = kwargs
+
+    class FakeOllamaModel:
+        def __init__(self, **kwargs: Any) -> None:
+            self.kwargs = kwargs
+
+    fake_models_module = types.ModuleType("deepeval.models")
+    fake_models_module.OpenAIModel = FakeOpenAIModel
+    fake_models_module.OllamaModel = FakeOllamaModel
+    fake_models_module.GPTModel = MagicMock(side_effect=AssertionError("deprecated class used"))
+
+    fake_deepeval_module = types.ModuleType("deepeval")
+    fake_deepeval_module.__path__ = []  # type: ignore[assignment]
+    fake_deepeval_module.models = fake_models_module
+
+    monkeypatch.setitem(sys.modules, "deepeval", fake_deepeval_module)
+    monkeypatch.setitem(sys.modules, "deepeval.models", fake_models_module)
+
+    judge = build_judge(s)
+
+    assert isinstance(judge, FakeOpenAIModel)
+    assert judge.kwargs["model"] == "gpt-4o-mini"
+    assert judge.kwargs["api_key"] == "test-openai"
 
 
 def test_build_judge_unknown_backend_raises() -> None:
