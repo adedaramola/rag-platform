@@ -11,10 +11,11 @@ class RetrievedChunk:
     """A chunk returned by the retriever, ready to pass to the generator."""
 
     id: str
-    text: str
+    text: str  # retrieval unit text (typically the child chunk)
     source: str
     page: int | None  # None for web-sourced chunks
     score: float  # cross-encoder score after re-ranking
+    parent_text: str | None = None  # expanded parent passage for generation context
 
 
 @runtime_checkable

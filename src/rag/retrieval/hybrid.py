@@ -142,6 +142,8 @@ class HybridRetriever:
         """Resolve each fused child id to its parent passage.
 
         Deduplicates on parent_id so the same context is never sent twice.
+        The child chunk text is preserved for retrieval/eval, while the parent
+        passage is carried separately for generation context.
         """
         parent_ids: list[str] = []
         child_to_parent: dict[str, str] = {}
@@ -166,7 +168,15 @@ class HybridRetriever:
             parent = pid_to_parent.get(pid)
             if parent and pid not in seen:
                 seen.add(pid)
-                candidates.append({**meta, **parent, "id": pid})
+                candidates.append(
+                    {
+                        **meta,
+                        "id": pid,
+                        "parent_text": parent.get("text", ""),
+                        "source": parent.get("source", meta.get("source", "")),
+                        "page": parent.get("page", meta.get("page")),
+                    }
+                )
             elif chunk_id not in seen:
                 seen.add(chunk_id)
                 candidates.append(meta)
@@ -176,7 +186,7 @@ class HybridRetriever:
         """Score candidates with the cross-encoder and return sorted RetrievedChunks."""
         if not candidates:
             return []
-        pairs = [(query, c.get("text", "")) for c in candidates]
+        pairs = [(query, c.get("parent_text") or c.get("text", "")) for c in candidates]
         scores: list[float] = self._reranker.predict(pairs).tolist()
 
         ranked = sorted(zip(candidates, scores, strict=False), key=lambda x: x[1], reverse=True)
@@ -187,6 +197,7 @@ class HybridRetriever:
                 source=str(c.get("source", "")),
                 page=int(c["page"]) if c.get("page") is not None else None,
                 score=score,
+                parent_text=str(c["parent_text"]) if c.get("parent_text") is not None else None,
             )
             for c, score in ranked
         ]

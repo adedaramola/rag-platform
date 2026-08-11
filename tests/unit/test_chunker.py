@@ -17,7 +17,7 @@ def settings() -> Settings:
         parent_token_size=200,
         child_token_size=50,
         overlap_sentences=2,
-    )  # type: ignore[call-arg]
+    )
 
 
 @pytest.fixture

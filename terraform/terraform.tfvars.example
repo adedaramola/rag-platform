@@ -1,19 +1,32 @@
-# Copy to terraform.tfvars and fill in your values.
-# terraform.tfvars is git-ignored — never commit it.
+# Copy to terraform.tfvars and fill in your values:
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# terraform.tfvars is git-ignored — NEVER commit it.
+# Secrets should NEVER appear in version control. Consider using
+# environment variables (TF_VAR_anthropic_api_key) or a secrets
+# manager (AWS Secrets Manager, HashiCorp Vault) instead.
 
 aws_region   = "us-east-1"
 project_name = "rag-platform"
 environment  = "prod"
 
-# Name of an existing EC2 key pair in your AWS account
+# Name of an existing EC2 key pair in your AWS account.
+# Create one: aws ec2 create-key-pair --key-name rag-platform-prod --query 'KeyMaterial' --output text > rag-platform-prod.pem
+# Store the .pem file OUTSIDE the project directory (e.g. ~/.ssh/).
 key_pair_name = "your-key-pair-name"
 
-# Restrict to your own IP to avoid exposing SSH publicly
-# Find your IP: curl https://checkip.amazonaws.com
-allowed_ssh_cidr = "203.0.113.0/32"
+# Restrict SSH to your own IP — never use 0.0.0.0/0 in production.
+# Find your IP: curl -s https://checkip.amazonaws.com
+allowed_ssh_cidr = "YOUR_IP/32"
 
-# Instance types (change to save cost or increase capacity)
-instance_type_weaviate     = "t3.medium"
-instance_type_api          = "t3.small"
+# Instance types
+instance_type_weaviate       = "t3.medium"
+instance_type_api            = "t3.small"
 weaviate_data_volume_size_gb = 20
-weaviate_version           = "1.27.0"
+weaviate_version             = "1.27.0"
+
+# --- Secrets (required) ---
+# Alternatively, set via env: export TF_VAR_anthropic_api_key="sk-ant-..."
+anthropic_api_key = "sk-ant-..."
+openai_api_key    = "sk-proj-..."
+github_token      = "ghp_..."

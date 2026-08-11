@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pydantic import SecretStr
@@ -14,8 +15,8 @@ from rag.interfaces.store import DocumentStoreProtocol
 from rag.store.factory import get_store
 
 
-def _settings(**kwargs: object) -> Settings:
-    return Settings(  # type: ignore[call-arg]
+def _settings(**kwargs: Any) -> Settings:
+    return Settings(
         anthropic_api_key=SecretStr("test"),
         openai_api_key=SecretStr("test"),
         **kwargs,

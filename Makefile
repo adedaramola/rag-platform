@@ -48,6 +48,9 @@ docker-up:
 docker-down:
 	docker compose down -v
 
+ollama-pull:
+	ollama pull llama3.1:8b
+
 ci: lint typecheck test
 
 clean:
@@ -55,4 +58,4 @@ clean:
 	rm -rf .coverage htmlcov/ dist/ .mypy_cache/ .ruff_cache/ reports/ .chroma/
 
 .PHONY: install install-local-embed install-ui lint format typecheck test-unit \
-        test-integration test-e2e test eval ingest api ui docker-up docker-down ci clean
+        test-integration test-e2e test eval ingest api ui docker-up docker-down ollama-pull ci clean

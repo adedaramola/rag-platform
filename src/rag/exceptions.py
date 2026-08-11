@@ -10,6 +10,10 @@ class RAGError(Exception):
         self.context: dict[str, object] = context or {}
 
 
+class ConfigurationError(RAGError):
+    """Raised when the system configuration is invalid or missing required values."""
+
+
 # ---------------------------------------------------------------------------
 # Ingestion
 # ---------------------------------------------------------------------------
@@ -71,7 +75,7 @@ class EmbeddingError(RetrievalError):
         self.context["model"] = model
 
 
-class IndexError(RetrievalError):
+class VectorIndexError(RetrievalError):
     """Raised when the BM25 or vector index operation fails."""
 
 
@@ -105,7 +109,7 @@ class StoreError(RAGError):
     """Raised when a document store operation fails."""
 
 
-class ConnectionError(StoreError):  # noqa: A001
+class StoreConnectionError(StoreError):
     """Raised when the store backend cannot be reached."""
 
     def __init__(self, host: str, port: int, message: str = "") -> None:
@@ -135,11 +139,11 @@ class SchemaError(StoreError):
 
 
 class EvaluationError(RAGError):
-    """Raised when the RAGAS evaluation harness fails."""
+    """Raised when the DeepEval evaluation harness fails."""
 
 
 class ThresholdViolationError(EvaluationError):
-    """Raised when a RAGAS metric falls below its required threshold."""
+    """Raised when a DeepEval metric falls below its required threshold."""
 
     def __init__(self, metric: str, actual: float, required: float) -> None:
         self.metric = metric

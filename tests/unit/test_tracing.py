@@ -221,7 +221,7 @@ def test_pipeline_uses_noop_tracer_by_default() -> None:
 
     mock_retriever = MagicMock()
     mock_generator = MagicMock()
-    pipeline = RAGPipeline(retriever=mock_retriever, generator=mock_generator)
+    pipeline = RAGPipeline(retriever=mock_retriever, generator=mock_generator, embedder=MagicMock())
     assert isinstance(pipeline.tracer, _NoOpTracer)
 
 
@@ -255,6 +255,7 @@ def test_pipeline_query_calls_tracer_trace() -> None:
     pipeline = RAGPipeline(
         retriever=mock_retriever,
         generator=mock_generator,
+        embedder=MagicMock(),
         tracer=spy_tracer,
     )
     pipeline.query("test question")

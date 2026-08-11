@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 import structlog
 
 from rag.config import Settings
-from rag.exceptions import EmbeddingError
+from rag.exceptions import ConfigurationError, EmbeddingError
 from rag.interfaces.embedder import EmbedderProtocol
 
 if TYPE_CHECKING:
@@ -107,7 +107,9 @@ def get_embedder(settings: Settings) -> EmbedderProtocol:
     """Factory: return the configured embedder backend."""
     if settings.embed_backend == "openai":
         if settings.openai_api_key is None:
-            raise ValueError("RAG_PLATFORM_OPENAI_API_KEY is required when embed_backend='openai'")
+            raise ConfigurationError(
+                "RAG_PLATFORM_OPENAI_API_KEY is required when embed_backend='openai'"
+            )
         return OpenAIEmbedder(
             model=settings.embed_model_openai,
             api_key=settings.openai_api_key.get_secret_value(),

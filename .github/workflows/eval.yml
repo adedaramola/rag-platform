@@ -103,6 +103,8 @@ jobs:
               status = '✅' if isinstance(t, float) and v >= t else '⚠️'
               print(f'| {k} | {v:.3f} | {t} {status} |')
           print()
-          print(f'**Passed:** {r.get(\"passed\", False)}')
+          print(f'**Thresholds met:** {r.get(\"thresholds_met\", r.get(\"passed\", False))}')
+          print(f'**Warn only:** {r.get(\"warn_only\", False)}')
+          print(f'**Workflow passed:** {r.get(\"passed\", False)}')
           print(f'**Judge:** {r.get(\"judge_backend\", \"\")} / {r.get(\"judge_model\", \"\")}')
           " >> $GITHUB_STEP_SUMMARY

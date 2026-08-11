@@ -133,7 +133,6 @@ def main() -> None:
 
     if not all_children:
         log.warning("no_chunks_produced", sources=len(sources))
-        store.store_bm25_corpus([])
         return
 
     # Phase 3: single embed_batch call across all documents
@@ -148,7 +147,12 @@ def main() -> None:
     child_count = len(all_children)
     doc_count = sum(len(docs) for _, docs in loaded)
 
-    store.store_bm25_corpus(all_child_chunks)
+    # Merge with the existing corpus so re-ingesting doc B does not erase doc A's
+    # BM25 entries — matches upsert_chunks accumulate semantics for symmetric hybrid retrieval.
+    corpus_dict = {doc["id"]: doc for doc in store.load_bm25_corpus()}
+    for chunk in all_child_chunks:
+        corpus_dict[chunk["id"]] = chunk
+    store.store_bm25_corpus(list(corpus_dict.values()))
 
     log.info(
         "ingestion_complete",

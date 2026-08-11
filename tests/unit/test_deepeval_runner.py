@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -17,17 +18,18 @@ from rag.evaluation.deepeval_runner import (
     _load_golden,
     build_judge,
 )
+from rag.exceptions import ConfigurationError
 
 
-def _settings(**kwargs: object) -> Settings:
-    return Settings(  # type: ignore[call-arg]
+def _settings(**kwargs: Any) -> Settings:
+    return Settings(
         anthropic_api_key=SecretStr("test"),
         openai_api_key=SecretStr("test-openai"),
         **kwargs,
     )
 
 
-def _write_golden(path: Path, pairs: list[dict]) -> None:
+def _write_golden(path: Path, pairs: list[dict[str, Any]]) -> None:
     with path.open("w") as f:
         for pair in pairs:
             f.write(json.dumps(pair) + "\n")
@@ -48,14 +50,14 @@ def test_build_judge_ollama_returns_model_with_correct_name() -> None:
 def test_build_judge_openai_missing_key_raises() -> None:
     s = _settings(eval_judge_backend="openai")
     object.__setattr__(s, "openai_api_key", None)
-    with pytest.raises(ValueError, match="RAG_PLATFORM_OPENAI_API_KEY"):
+    with pytest.raises(ConfigurationError, match="RAG_PLATFORM_OPENAI_API_KEY"):
         build_judge(s)
 
 
 def test_build_judge_unknown_backend_raises() -> None:
     s = _settings()
     object.__setattr__(s, "eval_judge_backend", "unknown")
-    with pytest.raises(ValueError, match="unknown"):
+    with pytest.raises(ConfigurationError, match="unknown"):
         build_judge(s)
 
 
@@ -97,13 +99,20 @@ def test_load_golden_skips_blank_lines() -> None:
 def test_eval_result_defaults() -> None:
     r = EvalResult(scores={"faithfulness": 0.9})
     assert r.passed is True
+    assert r.thresholds_met is True
     assert r.failures == []
     assert r.report_path is None
 
 
 def test_eval_result_with_failures() -> None:
-    r = EvalResult(scores={"faithfulness": 0.7}, failures=["metric X failed"], passed=False)
+    r = EvalResult(
+        scores={"faithfulness": 0.7},
+        failures=["metric X failed"],
+        thresholds_met=False,
+        passed=False,
+    )
     assert not r.passed
+    assert not r.thresholds_met
     assert len(r.failures) == 1
 
 
@@ -163,6 +172,7 @@ def test_write_report_creates_json_file() -> None:
         data = json.loads(out.read_text())
 
     assert data["passed"] is True
+    assert data["thresholds_met"] is True
     assert data["scores"]["faithfulness"] == 0.85
     assert "timestamp" in data
     assert "deepeval_version" in data
@@ -194,7 +204,7 @@ def test_write_report_includes_judge_metadata() -> None:
 def test_build_test_cases_returns_one_per_pair() -> None:
     calls: list[str] = []
 
-    def mock_fn(q: str) -> dict:
+    def mock_fn(q: str) -> dict[str, Any]:
         calls.append(q)
         return {"actual_output": f"answer to {q}", "retrieval_context": ["ctx"]}
 
@@ -210,7 +220,7 @@ def test_build_test_cases_returns_one_per_pair() -> None:
 
 
 def test_build_test_cases_handles_pipeline_failure() -> None:
-    def failing_fn(q: str) -> dict:
+    def failing_fn(q: str) -> dict[str, Any]:
         raise RuntimeError("pipeline down")
 
     runner = DeepEvalRunner(pipeline_fn=failing_fn, warn_only=True)
@@ -230,7 +240,7 @@ def test_build_test_cases_handles_pipeline_failure() -> None:
 def test_run_returns_eval_result() -> None:
     """run() loads golden data, calls pipeline, returns EvalResult."""
 
-    def mock_fn(q: str) -> dict:
+    def mock_fn(q: str) -> dict[str, Any]:
         return {"actual_output": "answer", "retrieval_context": ["context"]}
 
     runner = DeepEvalRunner(
@@ -261,7 +271,7 @@ def test_run_returns_eval_result() -> None:
 
 
 def test_run_marks_failed_when_below_threshold() -> None:
-    def mock_fn(q: str) -> dict:
+    def mock_fn(q: str) -> dict[str, Any]:
         return {"actual_output": "answer", "retrieval_context": ["context"]}
 
     runner = DeepEvalRunner(
@@ -280,5 +290,31 @@ def test_run_marks_failed_when_below_threshold() -> None:
         ):
             result = runner.run(golden)
 
+    assert result.thresholds_met is False
+    assert result.passed is True
+    assert len(result.failures) == 1
+
+
+def test_run_warn_only_false_marks_failed_when_below_threshold() -> None:
+    def mock_fn(q: str) -> dict[str, Any]:
+        return {"actual_output": "answer", "retrieval_context": ["context"]}
+
+    runner = DeepEvalRunner(
+        pipeline_fn=mock_fn,
+        thresholds={"faithfulness": 0.90},
+        warn_only=False,
+    )
+
+    with tempfile.TemporaryDirectory() as d:
+        golden = Path(d) / "golden.jsonl"
+        _write_golden(golden, [{"question": "Q1", "ground_truth": "A1"}])
+
+        with patch(
+            "rag.evaluation.deepeval_runner.DeepEvalRunner._evaluate",
+            return_value={"faithfulness": 0.70},
+        ):
+            result = runner.run(golden)
+
+    assert result.thresholds_met is False
     assert result.passed is False
     assert len(result.failures) == 1

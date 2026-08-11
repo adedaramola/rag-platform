@@ -1,4 +1,26 @@
+# ============================================================================
+# SECURITY — secrets and credentials (NEVER relax these rules)
+# ============================================================================
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+**/secrets/
+**/credentials/
+
+# Terraform secrets and state
+terraform/*.tfvars
+!terraform/*.tfvars.example
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/.infracost/
+
+# ============================================================================
+# Python
+# ============================================================================
 .venv/
 venv/
 __pycache__/
@@ -11,20 +33,25 @@ __pycache__/
 htmlcov/
 dist/
 *.egg-info/
+
+# ============================================================================
+# Data and reports (regenerated, not versioned)
+# ============================================================================
 reports/
 data/raw/
 data/processed/
 data/golden/*.pdf
 data/golden/*.docx
 data/golden/*.txt
+
+# ============================================================================
+# Infrastructure and stores
+# ============================================================================
 .chroma/
 *.weaviate/
+.deepeval/
+
+# ============================================================================
+# OS / editor
+# ============================================================================
 .DS_Store
-terraform/*.tfvars
-!terraform/*.tfvars.example
-terraform/*.tfstate
-terraform/*.tfstate*backup
-terraform/.terraform/
-terraform/.terraform.lock.hcl
-terraform/.infracost/
-*.pem

@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic import SecretStr
 
 from rag.config import Settings
-from rag.exceptions import EmbeddingError
+from rag.exceptions import ConfigurationError, EmbeddingError
 from rag.ingestion.embedder import BGEEmbedder, OpenAIEmbedder, get_embedder
 from rag.interfaces.embedder import EmbedderProtocol
 
 
-def _settings(**kwargs: object) -> Settings:
-    return Settings(  # type: ignore[call-arg]
+def _settings(**kwargs: Any) -> Settings:
+    return Settings(
         anthropic_api_key=SecretStr("test"),
         openai_api_key=SecretStr("test-openai"),
         **kwargs,
@@ -42,7 +43,7 @@ def test_get_embedder_local_returns_bge() -> None:
 def test_get_embedder_openai_missing_key_raises() -> None:
     s = _settings(embed_backend="openai")
     object.__setattr__(s, "openai_api_key", None)
-    with pytest.raises(ValueError, match="RAG_PLATFORM_OPENAI_API_KEY"):
+    with pytest.raises(ConfigurationError, match="RAG_PLATFORM_OPENAI_API_KEY"):
         get_embedder(s)
 
 

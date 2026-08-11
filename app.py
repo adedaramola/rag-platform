@@ -21,6 +21,10 @@ import httpx
 import streamlit as st
 
 API_URL = os.environ.get("RAG_PLATFORM_API_URL", "http://localhost:8000").rstrip("/")
+# When RAG_PLATFORM_API_KEY is set, the UI forwards it on every backend call.
+# Leave unset for local dev (mirrors the server-side opt-in behaviour).
+_API_KEY = os.environ.get("RAG_PLATFORM_API_KEY")
+_AUTH_HEADERS: dict[str, str] = {"X-API-Key": _API_KEY} if _API_KEY else {}
 
 # ---------------------------------------------------------------------------
 # Page config
@@ -77,7 +81,7 @@ if not st.session_state.api_ok:
 def fetch_metrics() -> dict[str, Any] | None:
     """Fetch /metrics from the backend. Returns None on any failure."""
     try:
-        r = httpx.get(f"{API_URL}/metrics", timeout=3.0)
+        r = httpx.get(f"{API_URL}/metrics", headers=_AUTH_HEADERS, timeout=3.0)
         r.raise_for_status()
         result: dict[str, Any] = r.json()
         return result
@@ -166,6 +170,7 @@ if question := st.chat_input("Ask a question about your documents…"):
             response = httpx.post(
                 f"{API_URL}/query",
                 json={"question": question},
+                headers=_AUTH_HEADERS,
                 timeout=60.0,
             )
             response.raise_for_status()
