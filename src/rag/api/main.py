@@ -235,7 +235,7 @@ def health() -> dict[str, str]:
     response_model=QueryResponse,
     dependencies=[Depends(_verify_api_key)],
 )
-@limiter.limit("10/minute")
+@limiter.limit(lambda: get_settings().api_rate_limit)
 def query(request: Request, body: QueryRequest) -> QueryResponse:
     """Run a question through the RAG pipeline and return a cited answer."""
     if _pipeline is None:

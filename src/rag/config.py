@@ -82,6 +82,7 @@ class Settings(BaseSettings):
     # When set, all /query and /metrics requests must include X-API-Key: <value>.
     # Leave unset (default) in local dev — auth is skipped entirely when None.
     api_key: SecretStr | None = None
+    api_rate_limit: str = "10/minute"
 
     model_config = SettingsConfigDict(
         env_prefix="RAG_PLATFORM_",

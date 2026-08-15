@@ -3,7 +3,7 @@
 #   1. LLM-judge metrics (faithfulness, answer_relevancy) call a model per question
 #   2. Even a local Ollama judge adds 5-15 minutes on 100+ golden questions
 #   3. A weekly cadence catches regressions without choking PR throughput
-# Set STRATUM_EVAL_WARN_ONLY=false (after baselines are established) to make
+# Set RAG_PLATFORM_EVAL_WARN_ONLY=false (after baselines are established) to make
 # threshold failures block the workflow.
 
 name: DeepEval Evaluation
@@ -59,29 +59,37 @@ jobs:
             -o data/golden/docs/attention_is_all_you_need.pdf
 
       - name: Ingest golden documents
-        run: stratum-ingest --source data/golden/docs/ --env ci
+        run: rag-platform-ingest --source data/golden/docs/ --env ci
         env:
-          STRATUM_STORE_BACKEND: weaviate
-          STRATUM_EMBED_BACKEND: openai
-          STRATUM_ANTHROPIC_API_KEY: ${{ secrets.STRATUM_ANTHROPIC_API_KEY }}
-          STRATUM_OPENAI_API_KEY: ${{ secrets.STRATUM_OPENAI_API_KEY }}
+          RAG_PLATFORM_STORE_BACKEND: weaviate
+          RAG_PLATFORM_EMBED_BACKEND: openai
+          RAG_PLATFORM_ANTHROPIC_API_KEY: ${{ secrets.RAG_PLATFORM_ANTHROPIC_API_KEY }}
+          RAG_PLATFORM_OPENAI_API_KEY: ${{ secrets.RAG_PLATFORM_OPENAI_API_KEY }}
+
+      - name: Run deterministic retrieval benchmark
+        run: rag-platform-benchmark --output reports/retrieval_benchmark.json
+        env:
+          RAG_PLATFORM_STORE_BACKEND: weaviate
+          RAG_PLATFORM_EMBED_BACKEND: openai
+          RAG_PLATFORM_ANTHROPIC_API_KEY: ${{ secrets.RAG_PLATFORM_ANTHROPIC_API_KEY }}
+          RAG_PLATFORM_OPENAI_API_KEY: ${{ secrets.RAG_PLATFORM_OPENAI_API_KEY }}
 
       - name: Run DeepEval gate
         run: pytest tests/e2e/test_eval.py -v --tb=short --no-cov
         env:
-          STRATUM_STORE_BACKEND: weaviate
-          STRATUM_EMBED_BACKEND: openai
-          STRATUM_ANTHROPIC_API_KEY: ${{ secrets.STRATUM_ANTHROPIC_API_KEY }}
-          STRATUM_OPENAI_API_KEY: ${{ secrets.STRATUM_OPENAI_API_KEY }}
-          STRATUM_EVAL_WARN_ONLY: "true"
-          STRATUM_EVAL_JUDGE_BACKEND: openai
+          RAG_PLATFORM_STORE_BACKEND: weaviate
+          RAG_PLATFORM_EMBED_BACKEND: openai
+          RAG_PLATFORM_ANTHROPIC_API_KEY: ${{ secrets.RAG_PLATFORM_ANTHROPIC_API_KEY }}
+          RAG_PLATFORM_OPENAI_API_KEY: ${{ secrets.RAG_PLATFORM_OPENAI_API_KEY }}
+          RAG_PLATFORM_EVAL_WARN_ONLY: "true"
+          RAG_PLATFORM_EVAL_JUDGE_BACKEND: openai
 
       - name: Upload DeepEval report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: deepeval-report
-          path: reports/deepeval_report.json
+          path: reports/*.json
           retention-days: 30
 
       - name: Write scores to job summary

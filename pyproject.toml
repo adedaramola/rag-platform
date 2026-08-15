@@ -73,6 +73,8 @@ dev = [
 
 [project.scripts]
 rag-platform-ingest = "rag.scripts.ingest:main"
+rag-platform-benchmark = "rag.scripts.benchmark:main"
+rag-platform-load-test = "rag.scripts.load_test:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/rag"]

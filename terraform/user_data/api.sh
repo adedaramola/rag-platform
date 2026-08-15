@@ -27,7 +27,7 @@ useradd -r -m -s /bin/bash rag-platform || true
 # ---------------------------------------------------------------------------
 REPO_DIR="/opt/rag-platform"
 rm -rf "$REPO_DIR"
-git clone "${github_clone_url}" "$REPO_DIR"
+git clone --branch "${github_ref}" --single-branch "${github_clone_url}" "$REPO_DIR"
 
 # Strip the PAT so it is never stored in .git/config after clone
 git -C "$REPO_DIR" remote set-url origin "${github_repo}"
@@ -39,7 +39,9 @@ echo "Repo cloned to $REPO_DIR"
 # ---------------------------------------------------------------------------
 cat > "$REPO_DIR/.env" << 'ENVEOF'
 RAG_PLATFORM_STORE_BACKEND=weaviate
-RAG_PLATFORM_EMBED_BACKEND=local
+RAG_PLATFORM_EMBED_BACKEND=${embed_backend}
+RAG_PLATFORM_CACHE_BACKEND=${cache_backend}
+RAG_PLATFORM_API_RATE_LIMIT=${api_rate_limit}
 ENVEOF
 
 # Append interpolated values separately to avoid Terraform/bash quoting issues
@@ -55,12 +57,12 @@ chmod 600 "$REPO_DIR/.env"
 echo ".env written"
 
 # ---------------------------------------------------------------------------
-# 5. Create venv and install dependencies (api + ui extras)
+# 5. Create venv and install dependencies (API + UI; OpenAI embeddings need no heavy extra)
 # ---------------------------------------------------------------------------
 sudo -u rag-platform python3.11 -m venv "$REPO_DIR/.venv"
 sudo -u rag-platform "$REPO_DIR/.venv/bin/pip" install --quiet --upgrade pip
 sudo mkdir -p /opt/pip-tmp && chmod 1777 /opt/pip-tmp
-sudo -u rag-platform TMPDIR=/opt/pip-tmp "$REPO_DIR/.venv/bin/pip" install --no-cache-dir -e "$REPO_DIR[api,ui,local-embed]"
+sudo -u rag-platform TMPDIR=/opt/pip-tmp "$REPO_DIR/.venv/bin/pip" install --no-cache-dir -e "$REPO_DIR[api,ui]"
 echo "Dependencies installed"
 
 # ---------------------------------------------------------------------------
@@ -80,7 +82,7 @@ EnvironmentFile=/opt/rag-platform/.env
 ExecStart=/opt/rag-platform/.venv/bin/uvicorn rag.api.main:app \
     --host 0.0.0.0 \
     --port 8000 \
-    --workers 2 \
+    --workers ${api_workers} \
     --no-access-log
 Restart=on-failure
 RestartSec=15

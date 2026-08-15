@@ -12,6 +12,8 @@ Condorcet and individual Rank Learning Methods."
 
 from __future__ import annotations
 
+import time
+from pathlib import Path
 from typing import Any
 
 import structlog
@@ -19,7 +21,7 @@ from rank_bm25 import BM25Okapi
 
 from rag.exceptions import RetrievalError
 from rag.interfaces.embedder import EmbedderProtocol
-from rag.interfaces.retriever import RetrievedChunk
+from rag.interfaces.retriever import CorpusStats, RetrievalDiagnostics, RetrievedChunk
 from rag.interfaces.store import DocumentStoreProtocol
 
 logger = structlog.get_logger(__name__)
@@ -80,47 +82,109 @@ class HybridRetriever:
           4. Parent expansion: swap child text for parent context, deduplicate
           5. Cross-encoder:   re-rank fused candidates by query relevance
         """
+        return self.retrieve_with_diagnostics(query).hybrid_post_rerank
+
+    def retrieve_with_diagnostics(self, query: str) -> RetrievalDiagnostics:
+        """Run retrieval once and retain every ranked stage and stage latency."""
         log = logger.bind(query=query[:80])
+        started = time.perf_counter()
+        timings: dict[str, float] = {}
 
         # Step 1 — dense retrieval
         try:
+            step_started = time.perf_counter()
             query_vector = self._embedder.embed(query)
+            timings["embedding"] = _elapsed_ms(step_started)
+            step_started = time.perf_counter()
             dense_hits = self._store.semantic_search(query_vector, top_k=self._top_k_dense)
+            timings["dense_search"] = _elapsed_ms(step_started)
             log.debug("dense_hits", count=len(dense_hits))
         except Exception as exc:
             raise RetrievalError(query=query, step="dense") from exc
 
         # Step 2 — sparse BM25 retrieval
         try:
+            step_started = time.perf_counter()
             sparse_hits = self._bm25_search(query, top_k=20)
+            timings["bm25_search"] = _elapsed_ms(step_started)
             log.debug("sparse_hits", count=len(sparse_hits))
         except Exception as exc:
             raise RetrievalError(query=query, step="sparse") from exc
 
         # Step 3 — RRF fusion
-        fused = _rrf_fuse(
+        step_started = time.perf_counter()
+        fused_scores = _rrf_score(
             [str(h["id"]) for h in dense_hits],
             [str(h["id"]) for h in sparse_hits],
         )
+        fused = list(fused_scores)
         # Merge metadata from both hit lists into a single lookup
         id_to_meta: dict[str, dict[str, Any]] = {}
         for hit in dense_hits + sparse_hits:
-            id_to_meta.setdefault(hit["id"], hit)
+            id_to_meta.setdefault(str(hit["id"]), hit)
+        for chunk_id, score in fused_scores.items():
+            id_to_meta[chunk_id]["rrf_score"] = score
+        timings["fusion"] = _elapsed_ms(step_started)
 
         # Step 4 — parent expansion (swap child text for parent context)
         try:
+            step_started = time.perf_counter()
             candidates = self._expand_to_parents(fused, id_to_meta)
+            timings["parent_expansion"] = _elapsed_ms(step_started)
         except Exception as exc:
             raise RetrievalError(query=query, step="parent_expansion") from exc
 
         # Step 5 — cross-encoder re-ranking
         try:
+            step_started = time.perf_counter()
             reranked = self._rerank(query, candidates)
+            timings["reranking"] = _elapsed_ms(step_started)
         except Exception as exc:
             raise RetrievalError(query=query, step="rerank") from exc
 
-        log.info("retrieval_complete", returned=len(reranked))
-        return reranked[: self._top_k_rerank]
+        post_rerank = reranked[: self._top_k_rerank]
+        timings["retrieval_total"] = _elapsed_ms(started)
+        dense_ranked = _raw_hits_to_chunks(dense_hits, "distance", invert_score=True)
+        bm25_ranked = _raw_hits_to_chunks(sparse_hits, "bm25_score")
+        pre_rerank = _raw_hits_to_chunks(candidates, "rrf_score")
+        log.info(
+            "retrieval_complete",
+            returned=len(post_rerank),
+            latency_ms=round(timings["retrieval_total"], 2),
+        )
+        return RetrievalDiagnostics(
+            dense=dense_ranked,
+            bm25=bm25_ranked,
+            hybrid_pre_rerank=pre_rerank,
+            hybrid_post_rerank=post_rerank,
+            timings_ms=timings,
+        )
+
+    def corpus_stats(self) -> CorpusStats:
+        """Measure indexed child scale and common metadata/data-quality defects."""
+        ids = [str(chunk.get("id", "")) for chunk in self._corpus]
+        texts = [str(chunk.get("text", "")).strip() for chunk in self._corpus]
+        sources = {
+            Path(str(chunk.get("source", ""))).name for chunk in self._corpus if chunk.get("source")
+        }
+        pages = {
+            (Path(str(chunk.get("source", ""))).name, chunk.get("page"))
+            for chunk in self._corpus
+            if chunk.get("source") and chunk.get("page") is not None
+        }
+        nonempty_texts = [text for text in texts if text]
+        return CorpusStats(
+            chunks=len(self._corpus),
+            unique_chunk_ids=len(set(ids)),
+            documents=len(sources),
+            source_names=sorted(sources),
+            pages=len(pages),
+            duplicate_text_chunks=len(nonempty_texts) - len(set(nonempty_texts)),
+            empty_text_chunks=sum(not text for text in texts),
+            missing_source_chunks=sum(not chunk.get("source") for chunk in self._corpus),
+            missing_page_chunks=sum(chunk.get("page") is None for chunk in self._corpus),
+            missing_parent_id_chunks=sum(not chunk.get("parent_id") for chunk in self._corpus),
+        )
 
     def _bm25_search(self, query: str, top_k: int) -> list[dict[str, Any]]:
         """Return top-k BM25 hits. Returns [] gracefully if index is empty."""
@@ -209,9 +273,45 @@ def _rrf_fuse(dense_ids: list[str], sparse_ids: list[str]) -> list[str]:
     score[id] += 1 / (RRF_K + rank)  for each list the id appears in.
     Returns IDs sorted by descending fused score. Deduplicates automatically.
     """
+    return list(_rrf_score(dense_ids, sparse_ids))
+
+
+def _rrf_score(dense_ids: list[str], sparse_ids: list[str]) -> dict[str, float]:
+    """Return RRF scores in descending rank order."""
     scores: dict[str, float] = {}
     for rank, chunk_id in enumerate(dense_ids, start=1):
         scores[chunk_id] = scores.get(chunk_id, 0.0) + 1.0 / (RRF_K + rank)
     for rank, chunk_id in enumerate(sparse_ids, start=1):
         scores[chunk_id] = scores.get(chunk_id, 0.0) + 1.0 / (RRF_K + rank)
-    return sorted(scores, key=lambda k: scores[k], reverse=True)
+    return dict(sorted(scores.items(), key=lambda item: item[1], reverse=True))
+
+
+def _raw_hits_to_chunks(
+    hits: list[dict[str, Any]],
+    score_field: str,
+    *,
+    invert_score: bool = False,
+) -> list[RetrievedChunk]:
+    """Convert store/candidate dictionaries to the public ranked chunk type."""
+    chunks: list[RetrievedChunk] = []
+    for hit in hits:
+        raw_score = float(hit.get(score_field, 0.0))
+        score = 1.0 - raw_score if invert_score else raw_score
+        chunks.append(
+            RetrievedChunk(
+                id=str(hit.get("id", "")),
+                text=str(hit.get("text", "")),
+                source=str(hit.get("source", "")),
+                page=int(hit["page"]) if hit.get("page") is not None else None,
+                score=score,
+                parent_text=(
+                    str(hit["parent_text"]) if hit.get("parent_text") is not None else None
+                ),
+            )
+        )
+    return chunks
+
+
+def _elapsed_ms(started: float) -> float:
+    """Convert a perf-counter interval to milliseconds."""
+    return (time.perf_counter() - started) * 1000.0

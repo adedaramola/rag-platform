@@ -272,12 +272,17 @@ terraform destroy
 | `make test-unit` | Unit tests (no network, no API keys) |
 | `make test-integration` | Integration tests (Chroma: no Docker; Weaviate: skipped without Docker) |
 | `make eval` | DeepEval gate (requires Ollama + golden dataset) |
+| `make benchmark` | Dense/BM25/hybrid/rerank quality and latency report |
+| `make load-test URL=...` | Deployed concurrency, E2E latency, and cache report |
 | `make ingest SOURCE=path` | Ingest a document or directory |
 | `make api` | Start FastAPI on port 8000 |
 | `make ui` | Start Streamlit UI on port 8501 |
 | `make docker-up` | Start Weaviate service container |
 | `make ci` | Full CI: lint + typecheck + unit tests |
 | `make clean` | Remove build artefacts and caches |
+
+Metric definitions, relevance-label caveats, and the current measured baseline are in
+[docs/benchmarking.md](docs/benchmarking.md).
 
 ---
 
