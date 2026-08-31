@@ -126,6 +126,29 @@ curl -X POST http://localhost:8000/query \
   -d '{"question": "What is the purpose of multi-head attention?"}'
 ```
 
+### Agent retrieval API
+
+OpsDesk uses the versioned retrieval-only endpoint and performs final generation through its
+separate multi-LLM gateway. Configure a service credential plus an explicit source allowlist:
+
+```dotenv
+RAG_PLATFORM_API_KEY=replace-with-a-scoped-service-key
+RAG_PLATFORM_APPROVED_SOURCE_IDS=["vpn-runbook"]
+```
+
+An authenticated request returns bounded evidence rather than a generated answer:
+
+```bash
+curl -X POST http://localhost:8000/v1/search \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $RAG_PLATFORM_API_KEY" \
+  -d '{"query":"VPN connection issue","source_ids":["vpn-runbook"],"max_chunks":5}'
+```
+
+Each response contains a request-local `query_id` and chunks with `citation_id`, `source_id`,
+optional `page`, and a bounded approved excerpt. Requests for sources outside the server allowlist
+are rejected. Raw queries and excerpts are excluded from application logs and traces.
+
 ---
 
 ## Optional Backends
@@ -140,6 +163,14 @@ RAG_PLATFORM_EMBED_BACKEND=local
 ```
 
 Requires ~2GB RAM. Uses `BAAI/bge-large-en-v1.5` (1024-dim).
+
+### Chroma development-only security boundary
+
+The default Chroma backend uses an in-process `PersistentClient` for local development and CI. Do
+not expose Chroma's HTTP server or use its multi-tenant authorization in this project: the current
+latest package has unresolved 2026 authorization and code-injection advisories with no patched
+PyPI release reported by the dependency audit. Production uses the private Weaviate backend. Keep
+Chroma bound to the local process and re-evaluate the advisory status before changing that boundary.
 
 ### Weaviate (production vector store)
 

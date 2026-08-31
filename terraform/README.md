@@ -14,10 +14,10 @@ ALB (rag-platform-prod-alb)
    │
    ▼
 EC2 t3.small (rag-platform-prod-api)
-   ├── rag-platform-api.service  (uvicorn, 2 workers)
+   ├── rag-platform-api.service  (uvicorn, configurable workers; default 1)
    └── rag-platform-ui.service   (streamlit)
    │
-   ▼ (private network)
+   ▼ (private VPC traffic)
 EC2 t3.medium (rag-platform-prod-weaviate)
    └── Weaviate 1.27.0 (Docker, 20 GB EBS data volume)
 
@@ -87,11 +87,11 @@ sudo systemctl restart rag-platform-api rag-platform-ui
 | File | Purpose |
 |---|---|
 | `main.tf` | Provider config, AMI data source, optional S3 backend |
-| `vpc.tf` | VPC, subnets (public + private), routing, NAT gateway |
+| `vpc.tf` | VPC, two public subnets, internet gateway, and routing |
 | `security_groups.tf` | ALB, API, and Weaviate security group rules |
 | `alb.tf` | Application Load Balancer + target groups |
 | `ec2.tf` | API and Weaviate instances, EBS data volume, user-data scripts |
-| `iam.tf` | Instance profile and S3 read policy for the API instance |
+| `iam.tf` | Instance profile and S3 read/write policy for the EC2 instances |
 | `s3.tf` | Documents bucket with versioning enabled |
 | `variables.tf` | All input variables with defaults and descriptions |
 | `outputs.tf` | URLs, IPs, SSH commands, bucket name |
@@ -99,7 +99,7 @@ sudo systemctl restart rag-platform-api rag-platform-ui
 
 ## Notes
 
-**SSH access** — `allowed_ssh_cidr` defaults to `0.0.0.0/0` in the example.
+**SSH access** — the `allowed_ssh_cidr` variable defaults to `0.0.0.0/0`.
 Restrict it to your own IP in production:
 
 ```bash
@@ -111,15 +111,39 @@ curl https://checkip.amazonaws.com
 `main.tf` and point it at a state bucket. Never share `terraform.tfstate`
 directly.
 
-**Weaviate is on a private subnet** — it is not publicly reachable. The API
-instance communicates with it over the VPC private network. SSH via the API
-instance if direct access is needed.
+**Weaviate network access** — both EC2 instances are in public subnets and
+receive public IP addresses. The API communicates with Weaviate over its private
+VPC address. Ports 8080 and 50051 accept traffic only from the API security
+group; SSH is limited by `allowed_ssh_cidr`.
 
 ## Tear down
+
+Back up the Weaviate data volume before teardown if its contents must survive.
+The documents bucket uses `force_destroy = false`, so Terraform will not delete
+a non-empty bucket or its versioned objects.
+
+To destroy everything, empty every object version and delete marker from the
+documents bucket first, then run:
 
 ```bash
 terraform destroy
 ```
 
-This removes all resources including the EBS data volume. Back up your Weaviate
-data before destroying if you want to retain it.
+To retain the documents bucket and all of its settings, first back up the
+Terraform state securely, then detach all S3-related resources from Terraform
+management:
+
+```bash
+terraform state rm \
+  aws_s3_bucket.documents \
+  aws_s3_bucket_versioning.documents \
+  aws_s3_bucket_server_side_encryption_configuration.documents \
+  aws_s3_bucket_public_access_block.documents \
+  random_id.bucket_suffix
+
+terraform destroy
+```
+
+The retained bucket then exists independently of this Terraform configuration.
+Do not run `terraform apply` again without first importing it or changing the
+configuration, because Terraform will plan a replacement documents bucket.

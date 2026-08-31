@@ -24,7 +24,7 @@ output "api_instance_public_ip" {
 }
 
 output "weaviate_instance_private_ip" {
-  description = "Private IP of the Weaviate instance (not publicly reachable)"
+  description = "Private VPC IP used by the API to reach the Weaviate instance"
   value       = aws_instance.weaviate.private_ip
 }
 

@@ -86,7 +86,7 @@ class HybridRetriever:
 
     def retrieve_with_diagnostics(self, query: str) -> RetrievalDiagnostics:
         """Run retrieval once and retain every ranked stage and stage latency."""
-        log = logger.bind(query=query[:80])
+        log = logger.bind(query_length=len(query))
         started = time.perf_counter()
         timings: dict[str, float] = {}
 

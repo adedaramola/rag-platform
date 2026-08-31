@@ -3,8 +3,8 @@
 #
 # Both instances use the same IAM profile and AMI.
 # Weaviate gets a dedicated data EBS volume so it survives instance replacement.
-# The API instance has a 20 GB root volume to hold the Python venv and the
-# cross-encoder model cache (~180 MB).
+# The API instance has a 60 GB root volume to hold the Python venv and the
+# cross-encoder model cache.
 # ---------------------------------------------------------------------------
 
 # ---- Weaviate ---------------------------------------------------------------

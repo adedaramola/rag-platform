@@ -261,4 +261,5 @@ def test_pipeline_query_calls_tracer_trace() -> None:
     pipeline.query("test question")
 
     spy_tracer.trace.assert_called_once()
+    assert spy_tracer.trace.call_args.kwargs == {"metadata": {"query_length": 13}}
     spy_tracer.flush.assert_called_once()

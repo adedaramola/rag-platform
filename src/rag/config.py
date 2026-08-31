@@ -2,9 +2,9 @@
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     # Leave unset (default) in local dev — auth is skipped entirely when None.
     api_key: SecretStr | None = None
     api_rate_limit: str = "10/minute"
+    approved_source_ids: list[
+        Annotated[str, Field(min_length=1, max_length=200, pattern=r"^[A-Za-z0-9._-]+$")]
+    ] = Field(default_factory=list, max_length=100)
+    search_max_excerpt_chars: int = Field(default=1_200, ge=100, le=2_000)
 
     model_config = SettingsConfigDict(
         env_prefix="RAG_PLATFORM_",

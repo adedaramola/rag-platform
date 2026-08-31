@@ -54,11 +54,11 @@ class RetrievalError(RAGError):
     """Raised when retrieval fails at a specific pipeline step."""
 
     def __init__(self, query: str, step: str, message: str = "") -> None:
-        self.query = query
+        self.query_length = len(query)
         self.step = step
         super().__init__(
-            message or f"Retrieval failed at step '{step}' for query: {query!r}",
-            context={"query": query, "step": step},
+            message or f"Retrieval failed at step '{step}'",
+            context={"query_length": len(query), "step": step},
         )
 
 

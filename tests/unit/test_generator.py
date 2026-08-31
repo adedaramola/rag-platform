@@ -73,7 +73,7 @@ def test_generate_returns_cited_answer() -> None:
     assert mock_client.messages.create.call_count == 2
     _, kwargs = mock_client.messages.create.call_args
     assert kwargs["max_tokens"] == 400
-    assert kwargs["temperature"] == 0
+    assert "temperature" not in kwargs
 
 
 def test_generate_falls_back_to_cited_draft_when_repair_loses_citations() -> None:

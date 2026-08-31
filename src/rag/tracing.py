@@ -10,7 +10,7 @@ enabled or not.
 
 Usage:
     tracer = get_tracer(settings)
-    with tracer.trace("query", input=question) as span:
+    with tracer.trace("query", metadata={"query_length": len(question)}) as span:
         with span.span("retrieval") as s:
             chunks = retriever.retrieve(question)
             s.update(output={"chunks": len(chunks)})

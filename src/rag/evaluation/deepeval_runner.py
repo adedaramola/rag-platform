@@ -204,7 +204,11 @@ class DeepEvalRunner:
                 actual_output = output.get("actual_output", "")
                 retrieval_context = output.get("retrieval_context", [])
             except Exception as exc:
-                logger.warning("pipeline_fn_failed", question=question[:60], error=str(exc))
+                logger.warning(
+                    "pipeline_fn_failed",
+                    query_length=len(question),
+                    error_type=type(exc).__name__,
+                )
                 actual_output = ""
                 retrieval_context = []
 
