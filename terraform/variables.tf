@@ -7,7 +7,7 @@ variable "aws_region" {
 variable "project_name" {
   description = "Project name — used as a prefix on every resource"
   type        = string
-  default     = "stratum"
+  default     = "rag-platform"
 }
 
 variable "environment" {
@@ -52,13 +52,13 @@ variable "weaviate_version" {
 }
 
 variable "anthropic_api_key" {
-  description = "Anthropic API key — written to the instance .env at boot (STRATUM_ANTHROPIC_API_KEY)"
+  description = "Anthropic API key — written to the instance .env at boot (RAG_PLATFORM_ANTHROPIC_API_KEY)"
   type        = string
   sensitive   = true
 }
 
 variable "openai_api_key" {
-  description = "OpenAI API key — written to the instance .env at boot (STRATUM_OPENAI_API_KEY)"
+  description = "OpenAI API key — written to the instance .env at boot (RAG_PLATFORM_OPENAI_API_KEY)"
   type        = string
   sensitive   = true
 }
@@ -72,5 +72,35 @@ variable "github_token" {
 variable "github_repo" {
   description = "Full GitHub repo URL (without credentials)"
   type        = string
-  default     = "https://github.com/adedaramola/stratum.git"
+  default     = "https://github.com/adedaramola/rag-platform.git"
+}
+
+variable "github_ref" {
+  description = "Git branch or tag deployed to the API node"
+  type        = string
+  default     = "main"
+}
+
+variable "embed_backend" {
+  description = "Embedding backend used by ingestion and queries"
+  type        = string
+  default     = "openai"
+}
+
+variable "cache_backend" {
+  description = "Semantic cache backend used by the API"
+  type        = string
+  default     = "memory"
+}
+
+variable "api_rate_limit" {
+  description = "SlowAPI limit string; raise for controlled benchmark environments"
+  type        = string
+  default     = "1000/minute"
+}
+
+variable "api_workers" {
+  description = "Uvicorn workers; one keeps in-memory cache and metrics process-consistent"
+  type        = number
+  default     = 1
 }

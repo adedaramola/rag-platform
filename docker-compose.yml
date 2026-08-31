@@ -1,6 +1,6 @@
 # Weaviate is the PRODUCTION store backend.
 # The default backend is Chroma — zero infrastructure required for local development.
-# Only run this file if STRATUM_STORE_BACKEND=weaviate in your .env.
+# Only run this file if RAG_PLATFORM_STORE_BACKEND=weaviate in your .env.
 # Start:  make docker-up
 # Verify: curl http://localhost:8080/v1/.well-known/ready
 

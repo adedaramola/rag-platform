@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Agent-authenticated `POST /v1/search` retrieval contract with bounded evidence and request-local
+  citation IDs
+- Explicit approved-source allowlisting for retrieval-only consumers
 - Hierarchical ingestion pipeline with parent/child chunking strategy (ADR-001)
 - Dual store backend: Chroma (default, zero-infra) and Weaviate (production) (ADR-002)
 - Separate parent/child collections — no zero-vector pollution (ADR-003)
@@ -25,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI badges (CI status, DeepEval gate) added to README
 
 ### Changed
+- Removed raw query content from API, retrieval, evaluation, cache, and tracing telemetry
 - Weaviate service image bumped to `1.27.0` (minimum version required by `weaviate-client>=4.5.0`)
 - DeepEval CI gate switched from local Ollama judge to OpenAI `gpt-4o-mini`; Ollama removed
   as a CI service container (CPU inference too slow for 58+ questions within 60-min timeout)
@@ -36,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DeepEvalRunner._evaluate()`: all `(test_case, metric)` pairs now run concurrently via
   `ThreadPoolExecutor` with fresh metric instances per task — reduces 58-question eval from
   60+ minutes (timeout) to ~11 minutes
-- `stratum-ingest`: document loading parallelised with `ThreadPoolExecutor`; all child chunks
+- `rag-platform-ingest`: document loading parallelised with `ThreadPoolExecutor`; all child chunks
   across all documents are embedded in a single `embed_batch` call instead of one call per
   document
 - `WeaviateStore.fetch_parents()`: replaced per-ID round-trip loop with a single batch

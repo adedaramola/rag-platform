@@ -3,8 +3,8 @@
 #
 # Both instances use the same IAM profile and AMI.
 # Weaviate gets a dedicated data EBS volume so it survives instance replacement.
-# The API instance has a 20 GB root volume to hold the Python venv and the
-# cross-encoder model cache (~180 MB).
+# The API instance has a 60 GB root volume to hold the Python venv and the
+# cross-encoder model cache.
 # ---------------------------------------------------------------------------
 
 # ---- Weaviate ---------------------------------------------------------------
@@ -65,15 +65,20 @@ resource "aws_instance" "api" {
     delete_on_termination = true
   }
 
-  user_data                   = base64encode(templatefile("${path.module}/user_data/api.sh", {
+  user_data = base64encode(templatefile("${path.module}/user_data/api.sh", {
     weaviate_host     = aws_instance.weaviate.private_ip
     weaviate_port     = 8080
     project_name      = var.project_name
     anthropic_api_key = var.anthropic_api_key
     openai_api_key    = var.openai_api_key
+    embed_backend     = var.embed_backend
+    cache_backend     = var.cache_backend
+    api_rate_limit    = var.api_rate_limit
+    api_workers       = var.api_workers
     # Authenticated clone URL (token stripped from git remote after clone)
-    github_clone_url  = "https://x-access-token:${var.github_token}@${replace(var.github_repo, "https://", "")}"
-    github_repo       = var.github_repo
+    github_clone_url = "https://x-access-token:${var.github_token}@${replace(var.github_repo, "https://", "")}"
+    github_repo      = var.github_repo
+    github_ref       = var.github_ref
   }))
   user_data_replace_on_change = true
 

@@ -1,6 +1,6 @@
 # Starting-point thresholds — not validated baselines.
 # See docs/evaluation.md for instructions on deriving empirical baselines
-# before setting STRATUM_EVAL_WARN_ONLY=false.
+# before setting RAG_PLATFORM_EVAL_WARN_ONLY=false.
 faithfulness: 0.85
 answer_relevancy: 0.80
 contextual_precision: 0.75

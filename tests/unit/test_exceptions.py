@@ -74,7 +74,9 @@ def test_chunking_error_custom_message() -> None:
 def test_retrieval_error() -> None:
     e = RetrievalError(query="what is RAG?", step="dense_search")
     assert "dense_search" in str(e)
-    assert e.query == "what is RAG?"
+    assert e.query_length == len("what is RAG?")
+    assert "what is RAG?" not in str(e)
+    assert e.context == {"query_length": len("what is RAG?"), "step": "dense_search"}
     assert e.step == "dense_search"
 
 

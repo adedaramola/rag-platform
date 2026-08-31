@@ -1,6 +1,6 @@
 """Redis-backed semantic cache.
 
-Opt-in via STRATUM_CACHE_BACKEND=redis + STRATUM_REDIS_URL=redis://...
+Opt-in via RAG_PLATFORM_CACHE_BACKEND=redis + RAG_PLATFORM_REDIS_URL=redis://...
 
 Data layout (all under one configurable key prefix):
   {prefix}:emb  — Redis Hash  { item_id → base64(float32 bytes) }
@@ -41,7 +41,7 @@ class RedisSemanticCache:
     """Redis-backed semantic cache with optional TTL-based eviction.
 
     Implements SemanticCacheProtocol. Requires redis>=5.0.0 (pip install
-    'stratum[cache]'). Connection errors raise StoreError.
+    'rag-platform[cache]'). Connection errors raise StoreError.
     """
 
     def __init__(
@@ -49,7 +49,7 @@ class RedisSemanticCache:
         redis_url: str,
         similarity_threshold: float,
         ttl_seconds: int | None = None,
-        key_prefix: str = "stratum:cache",
+        key_prefix: str = "rag-platform:cache",
     ) -> None:
         self._threshold = similarity_threshold
         self._ttl = ttl_seconds
@@ -65,7 +65,7 @@ class RedisSemanticCache:
             self._client.ping()
         except ImportError as exc:
             raise ImportError(
-                "Redis client not installed. Run: pip install 'stratum[cache]'"
+                "Redis client not installed. Run: pip install 'rag-platform[cache]'"
             ) from exc
         except Exception as exc:
             raise StoreError(f"Redis connection failed: {exc}") from exc

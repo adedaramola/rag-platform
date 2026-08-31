@@ -2,7 +2,8 @@
 # Security groups
 #
 # Traffic path:  Internet → ALB (80/8501) → API SG (8000/8501) → Weaviate SG (8080/50051)
-# Weaviate is never reachable from the internet — only from the API security group.
+# Weaviate service ports are reachable only from the API security group.
+# SSH is allowed separately from allowed_ssh_cidr.
 # ---------------------------------------------------------------------------
 
 resource "aws_security_group" "alb" {

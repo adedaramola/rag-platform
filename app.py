@@ -1,9 +1,9 @@
-"""Stratum RAG — Streamlit chat interface.
+"""RAG Platform RAG — Streamlit chat interface.
 
 Connects to the FastAPI backend (rag.api.main).
 The backend URL defaults to localhost:8000 but can be overridden:
 
-    STRATUM_API_URL=http://<alb-host> streamlit run app.py
+    RAG_PLATFORM_API_URL=http://<alb-host> streamlit run app.py
 
 Start the backend first (local):
     uvicorn rag.api.main:app --reload
@@ -20,10 +20,10 @@ from typing import Any
 import httpx
 import streamlit as st
 
-API_URL = os.environ.get("STRATUM_API_URL", "http://localhost:8000").rstrip("/")
-# When STRATUM_API_KEY is set the UI forwards it as X-API-Key on every backend call.
+API_URL = os.environ.get("RAG_PLATFORM_API_URL", "http://localhost:8000").rstrip("/")
+# When RAG_PLATFORM_API_KEY is set, the UI forwards it on every backend call.
 # Leave unset for local dev (mirrors the server-side opt-in behaviour).
-_API_KEY = os.environ.get("STRATUM_API_KEY")
+_API_KEY = os.environ.get("RAG_PLATFORM_API_KEY")
 _AUTH_HEADERS: dict[str, str] = {"X-API-Key": _API_KEY} if _API_KEY else {}
 
 # ---------------------------------------------------------------------------
@@ -31,12 +31,12 @@ _AUTH_HEADERS: dict[str, str] = {"X-API-Key": _API_KEY} if _API_KEY else {}
 # ---------------------------------------------------------------------------
 
 st.set_page_config(
-    page_title="Stratum RAG",
+    page_title="RAG Platform RAG",
     page_icon="📚",
     layout="centered",
 )
 
-st.title("📚 Stratum RAG")
+st.title("📚 RAG Platform RAG")
 st.caption("Citation-grounded document Q&A powered by hybrid retrieval.")
 
 # ---------------------------------------------------------------------------
@@ -90,7 +90,7 @@ def fetch_metrics() -> dict[str, Any] | None:
 
 
 with st.sidebar:
-    st.header("Stratum")
+    st.header("RAG Platform")
     st.markdown(
         "Ask questions about your ingested documents. "
         "Every answer includes citations so you can verify the source."

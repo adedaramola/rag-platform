@@ -1,7 +1,7 @@
 """DeepEval evaluation gate. Runs on weekly schedule and manual trigger — not every PR.
 
 See docs/evaluation.md for guidance on curating golden datasets and setting
-empirical baselines before setting STRATUM_EVAL_WARN_ONLY=false.
+empirical baselines before setting RAG_PLATFORM_EVAL_WARN_ONLY=false.
 """
 
 from __future__ import annotations
@@ -22,11 +22,11 @@ def rag_pipeline() -> RAGPipeline:
     """Build a real RAGPipeline for e2e evaluation.
 
     Skipped automatically when:
-      - STRATUM_ANTHROPIC_API_KEY is not set
+      - RAG_PLATFORM_ANTHROPIC_API_KEY is not set
       - eval_judge_backend=ollama and Ollama is not reachable
     """
-    if not os.environ.get("STRATUM_ANTHROPIC_API_KEY"):
-        pytest.skip("STRATUM_ANTHROPIC_API_KEY not set — skipping e2e eval")
+    if not os.environ.get("RAG_PLATFORM_ANTHROPIC_API_KEY"):
+        pytest.skip("RAG_PLATFORM_ANTHROPIC_API_KEY not set — skipping e2e eval")
 
     settings = get_settings()
 
@@ -38,7 +38,7 @@ def rag_pipeline() -> RAGPipeline:
         except Exception:
             pytest.skip(
                 f"Ollama not reachable at {settings.eval_ollama_base_url} — "
-                "run `ollama serve` or set STRATUM_EVAL_JUDGE_BACKEND=openai"
+                "run `ollama serve` or set RAG_PLATFORM_EVAL_JUDGE_BACKEND=openai"
             )
 
     return build_pipeline(settings)

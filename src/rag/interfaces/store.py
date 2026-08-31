@@ -35,7 +35,7 @@ class DocumentStoreProtocol(Protocol):
     """Contract for vector + document store backends.
 
     Implementations: ChromaStore (default), WeaviateStore (production).
-    Swap via STRATUM_STORE_BACKEND env var — all downstream code uses this Protocol.
+    Swap via RAG_PLATFORM_STORE_BACKEND env var — all downstream code uses this Protocol.
     """
 
     def upsert_chunks(

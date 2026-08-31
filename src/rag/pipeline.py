@@ -16,7 +16,7 @@ from rag.config import Settings
 from rag.interfaces.cache import SemanticCacheProtocol
 from rag.interfaces.embedder import EmbedderProtocol
 from rag.interfaces.generator import CitedAnswer, GeneratorProtocol
-from rag.interfaces.retriever import RetrieverProtocol
+from rag.interfaces.retriever import RetrievedChunk, RetrieverProtocol
 
 logger = structlog.get_logger(__name__)
 
@@ -51,12 +51,12 @@ class RAGPipeline:
             query_embedding = self.embedder.embed(question)
             cached = self.cache.get(query_embedding)
             if cached is not None:
-                logger.info("semantic_cache_hit", question=question[:80])
+                logger.info("semantic_cache_hit", query_length=len(question))
                 return cached
         else:
             query_embedding = None
 
-        with self.tracer.trace("query", input=question) as span:
+        with self.tracer.trace("query", metadata={"query_length": len(question)}) as span:
             with span.span("retrieval") as s:
                 chunks = self.retriever.retrieve(question)
                 s.update(output={"chunks": len(chunks)})
@@ -69,6 +69,28 @@ class RAGPipeline:
             self.cache.set(query_embedding, answer)
 
         return answer
+
+    def search(
+        self,
+        query: str,
+        *,
+        trace_id: str | None = None,
+        workflow_id: str | None = None,
+    ) -> list[RetrievedChunk]:
+        """Return retrieval evidence without invoking answer generation or semantic caching."""
+        metadata: dict[str, str | int] = {"query_length": len(query)}
+        if trace_id is not None:
+            metadata["trace_id"] = trace_id
+        if workflow_id is not None:
+            metadata["workflow_id"] = workflow_id
+        with (
+            self.tracer.trace("search", metadata=metadata) as span,
+            span.span("retrieval") as retrieval_span,
+        ):
+            chunks = self.retriever.retrieve(query)
+            retrieval_span.update(output={"chunks": len(chunks)})
+        self.tracer.flush()
+        return chunks
 
     def pipeline_fn(self, question: str) -> dict[str, Any]:
         """DeepEval-compatible interface: returns actual_output and retrieval_context keys."""

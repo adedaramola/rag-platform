@@ -43,7 +43,7 @@ def test_get_embedder_local_returns_bge() -> None:
 def test_get_embedder_openai_missing_key_raises() -> None:
     s = _settings(embed_backend="openai")
     object.__setattr__(s, "openai_api_key", None)
-    with pytest.raises(ConfigurationError, match="STRATUM_OPENAI_API_KEY"):
+    with pytest.raises(ConfigurationError, match="RAG_PLATFORM_OPENAI_API_KEY"):
         get_embedder(s)
 
 

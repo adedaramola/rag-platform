@@ -72,7 +72,7 @@ class CitationGroundedGenerator:
         context_block = self._build_context_block(chunks)
         draft_prompt = f"{context_block}\n\nQuestion: {query}"
 
-        log = logger.bind(model=self._model, query=query[:80], num_chunks=len(chunks))
+        log = logger.bind(model=self._model, query_length=len(query), num_chunks=len(chunks))
         log.debug("generation_start")
 
         draft_answer, draft_input_tokens, draft_output_tokens = self._generate_text(
@@ -128,7 +128,6 @@ class CitationGroundedGenerator:
             response = self._client.messages.create(
                 model=self._model,
                 max_tokens=self._max_tokens,
-                temperature=0,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_message}],
             )

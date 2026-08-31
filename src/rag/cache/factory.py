@@ -1,4 +1,4 @@
-"""Maps STRATUM_CACHE_BACKEND to a concrete SemanticCacheProtocol implementation."""
+"""Maps RAG_PLATFORM_CACHE_BACKEND to a concrete SemanticCacheProtocol implementation."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ def get_cache(settings: Settings) -> SemanticCacheProtocol | None:
 
     'none'   → returns None  (default — no caching overhead)
     'memory' → InMemorySemanticCache (zero infrastructure, lost on restart)
-    'redis'  → RedisSemanticCache    (persistent, requires STRATUM_REDIS_URL)
+    'redis'  → RedisSemanticCache    (persistent, requires RAG_PLATFORM_REDIS_URL)
     """
     if settings.cache_backend == "none":
         return None
@@ -30,7 +30,7 @@ def get_cache(settings: Settings) -> SemanticCacheProtocol | None:
 
         if settings.redis_url is None:
             raise ConfigurationError(
-                "STRATUM_REDIS_URL must be set when STRATUM_CACHE_BACKEND=redis"
+                "RAG_PLATFORM_REDIS_URL must be set when RAG_PLATFORM_CACHE_BACKEND=redis"
             )
         return RedisSemanticCache(
             redis_url=settings.redis_url.get_secret_value(),

@@ -170,7 +170,7 @@ class WebLoader:
         """
         headers = {
             "User-Agent": (
-                "Mozilla/5.0 (compatible; Stratum-RAG/0.1; +https://github.com/adedaramola/stratum)"
+                "Mozilla/5.0 (compatible; RAG-Platform/0.1; +https://github.com/adedaramola/rag-platform)"
             )
         }
         try:

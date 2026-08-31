@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "stratum"
+name = "rag-platform"
 version = "0.1.0"
 description = "Domain-specific RAG engine with hybrid retrieval, cross-encoder re-ranking, and citation-grounded generation"
 requires-python = ">=3.11"
@@ -11,7 +11,7 @@ license = { text = "MIT" }
 dependencies = [
   # Vector stores
   "chromadb>=0.5.0",             # default backend — zero infrastructure
-  "weaviate-client>=4.5.0",      # production backend — opt-in via STRATUM_STORE_BACKEND=weaviate
+  "weaviate-client>=4.5.0",      # production backend — opt-in via RAG_PLATFORM_STORE_BACKEND=weaviate
 
   # Embeddings — OpenAI is the default (no GPU, no large download)
   "anthropic>=0.30.0",
@@ -67,12 +67,14 @@ dev = [
   "mypy>=1.10.0",
   "ruff>=0.15.0",
   "pre-commit>=3.7.0",
-  "stratum[eval]",
-  "stratum[api]",
+  "rag-platform[eval]",
+  "rag-platform[api]",
 ]
 
 [project.scripts]
-stratum-ingest = "rag.scripts.ingest:main"
+rag-platform-ingest = "rag.scripts.ingest:main"
+rag-platform-benchmark = "rag.scripts.benchmark:main"
+rag-platform-load-test = "rag.scripts.load_test:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/rag"]
@@ -103,7 +105,7 @@ asyncio_mode = "auto"
 addopts = "--cov=src/rag --cov-report=term-missing --no-cov-on-fail"
 markers = [
   "integration: requires live infrastructure (Chroma runs in CI; Weaviate requires Docker)",
-  "e2e: requires STRATUM_ANTHROPIC_API_KEY and eval dependencies",
+  "e2e: requires RAG_PLATFORM_ANTHROPIC_API_KEY and eval dependencies",
   "slow: marks tests as slow (deselect with -m 'not slow')",
 ]
 

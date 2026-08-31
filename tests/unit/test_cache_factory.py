@@ -42,13 +42,13 @@ def test_get_cache_memory_returns_in_memory_cache() -> None:
 
 
 def test_get_cache_redis_missing_url_raises_configuration_error() -> None:
-    """Redis backend requires STRATUM_REDIS_URL."""
+    """Redis backend requires RAG_PLATFORM_REDIS_URL."""
     settings = _settings(cache_backend="redis")
     object.__setattr__(settings, "redis_url", None)
 
     with (
         patch("rag.cache.redis_cache.RedisSemanticCache"),
-        pytest.raises(ConfigurationError, match="STRATUM_REDIS_URL"),
+        pytest.raises(ConfigurationError, match="RAG_PLATFORM_REDIS_URL"),
     ):
         get_cache(settings)
 

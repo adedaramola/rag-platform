@@ -1,12 +1,12 @@
-"""FastAPI application. Exposes POST /query, GET /health, and GET /metrics.
+"""FastAPI application for cited answers and Agent-only evidence retrieval.
 
 The pipeline — including cross-encoder model load and store connection — is
 initialised once at startup via the lifespan context manager, not on first request.
 
 Security:
   - /health is open (required for ALB health checks).
-  - /query and /metrics require X-API-Key when STRATUM_API_KEY is configured.
-    When STRATUM_API_KEY is unset the check is skipped (safe for local dev).
+  - /query and /metrics require X-API-Key when RAG_PLATFORM_API_KEY is configured.
+    When RAG_PLATFORM_API_KEY is unset the check is skipped (safe for local dev).
   - /query is rate-limited to 10 requests/minute per API key (or client IP as
     fallback). Exceeding the limit returns HTTP 429.
 """
@@ -14,17 +14,23 @@ Security:
 from __future__ import annotations
 
 import contextlib
+import hashlib
+import hmac
+import re
 import statistics
 import threading
 import time
+import uuid
 from collections import deque
 from collections.abc import AsyncGenerator
+from pathlib import Path
 from typing import Annotated
+from urllib.parse import urlparse
 
 import structlog
-from fastapi import Depends, FastAPI, HTTPException, Request, Security, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -47,7 +53,35 @@ _OUTPUT_COST_PER_TOKEN = 15.00 / 1_000_000  # $15.00 / MTok
 class QueryRequest(BaseModel):
     """Incoming question."""
 
-    question: str
+    question: str = Field(min_length=1, max_length=2_000)
+
+
+class SearchRequest(BaseModel):
+    """Bounded retrieval-only request for an authenticated Agent."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(min_length=1, max_length=500)
+    source_ids: list[
+        Annotated[str, Field(min_length=1, max_length=200, pattern=r"^[A-Za-z0-9._-]+$")]
+    ] = Field(default_factory=list, max_length=20)
+    max_chunks: int = Field(default=5, ge=1, le=8)
+
+
+class SearchChunkOut(BaseModel):
+    """One approved evidence excerpt with a request-local citation ID."""
+
+    citation_id: str
+    source_id: str
+    page: int | None
+    text: str
+
+
+class SearchResponse(BaseModel):
+    """Bounded evidence response; it deliberately contains no generated answer."""
+
+    query_id: str
+    chunks: list[SearchChunkOut]
 
 
 class CitationOut(BaseModel):
@@ -151,15 +185,32 @@ _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 def _verify_api_key(
     provided: Annotated[str | None, Security(_api_key_header)] = None,
 ) -> None:
-    """Dependency that enforces X-API-Key when STRATUM_API_KEY is configured.
+    """Dependency that enforces X-API-Key when RAG_PLATFORM_API_KEY is configured.
 
     When api_key is unset in Settings the check is a no-op, preserving
-    zero-friction local development. Set STRATUM_API_KEY to activate.
+    zero-friction local development. Set RAG_PLATFORM_API_KEY to activate.
     """
     settings = get_settings()
     if settings.api_key is None:
         return
-    if provided != settings.api_key.get_secret_value():
+    if provided is None or not hmac.compare_digest(provided, settings.api_key.get_secret_value()):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid or missing API key.",
+        )
+
+
+def _verify_agent_api_key(
+    provided: Annotated[str | None, Security(_api_key_header)] = None,
+) -> None:
+    """Require the configured service credential for the Agent-only search route."""
+    settings = get_settings()
+    if settings.api_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Agent retrieval is not configured.",
+        )
+    if provided is None or not hmac.compare_digest(provided, settings.api_key.get_secret_value()):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid or missing API key.",
@@ -175,7 +226,7 @@ def _rate_limit_key(request: Request) -> str:
     """Rate-limit by API key when present, falling back to client IP."""
     key = request.headers.get("X-API-Key")
     if key:
-        return f"apikey:{key}"
+        return f"apikey:{hashlib.sha256(key.encode()).hexdigest()[:16]}"
     if request.client:
         return f"ip:{request.client.host}"
     return "ip:unknown"
@@ -197,20 +248,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:  # noqa: ARG001
     """Build the RAGPipeline on startup; release on shutdown."""
     global _pipeline
     settings = get_settings()
-    logger.info("stratum_api_startup", store_backend=settings.store_backend)
+    logger.info("rag_platform_api_startup", store_backend=settings.store_backend)
     try:
         _pipeline = build_pipeline(settings)
-        logger.info("stratum_api_ready")
+        logger.info("rag_platform_api_ready")
     except Exception as exc:
-        logger.error("stratum_api_startup_failed", error=str(exc))
+        logger.error("rag_platform_api_startup_failed", error_type=type(exc).__name__)
         raise
     yield
     _pipeline = None
-    logger.info("stratum_api_shutdown")
+    logger.info("rag_platform_api_shutdown")
 
 
 app = FastAPI(
-    title="Stratum RAG API",
+    title="RAG Platform RAG API",
     description="Citation-grounded document Q&A powered by hybrid retrieval.",
     version="0.1.0",
     lifespan=lifespan,
@@ -235,7 +286,7 @@ def health() -> dict[str, str]:
     response_model=QueryResponse,
     dependencies=[Depends(_verify_api_key)],
 )
-@limiter.limit("10/minute")
+@limiter.limit(lambda: get_settings().api_rate_limit)
 def query(request: Request, body: QueryRequest) -> QueryResponse:
     """Run a question through the RAG pipeline and return a cited answer."""
     if _pipeline is None:
@@ -243,7 +294,7 @@ def query(request: Request, body: QueryRequest) -> QueryResponse:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Pipeline not initialised — startup may still be in progress.",
         )
-    log = logger.bind(question=body.question[:80])
+    log = logger.bind(query_length=len(body.question))
     t0 = time.perf_counter()
     try:
         result = _pipeline.query(body.question)
@@ -269,7 +320,7 @@ def query(request: Request, body: QueryRequest) -> QueryResponse:
     except RAGError as exc:
         latency_ms = (time.perf_counter() - t0) * 1000
         _metrics.record(latency_ms=latency_ms, cited=False, input_tokens=0, output_tokens=0)
-        log.warning("query_rag_error", error=str(exc))
+        log.warning("query_rag_error", error_type=type(exc).__name__)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
@@ -277,11 +328,123 @@ def query(request: Request, body: QueryRequest) -> QueryResponse:
     except Exception as exc:
         latency_ms = (time.perf_counter() - t0) * 1000
         _metrics.record(latency_ms=latency_ms, cited=False, input_tokens=0, output_tokens=0)
-        log.error("query_unexpected_error", error=str(exc))
+        log.error("query_unexpected_error", error_type=type(exc).__name__)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error",
         ) from exc
+
+
+@app.post(
+    "/v1/search",
+    response_model=SearchResponse,
+    dependencies=[Depends(_verify_agent_api_key)],
+)
+@limiter.limit(lambda: get_settings().api_rate_limit)
+def search(
+    request: Request,
+    body: SearchRequest,
+    traceparent: Annotated[
+        str | None,
+        Header(pattern=r"^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$"),
+    ] = None,
+    workflow_id: Annotated[
+        str | None,
+        Header(alias="X-Workflow-ID", pattern=r"^[0-9a-f-]{36}$"),
+    ] = None,
+) -> SearchResponse:
+    """Return approved retrieval evidence without invoking answer generation."""
+    if _pipeline is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Pipeline not initialised — startup may still be in progress.",
+        )
+    settings = get_settings()
+    approved = set(settings.approved_source_ids)
+    if not approved:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No approved knowledge sources are configured.",
+        )
+    requested = set(body.source_ids)
+    if requested and not requested.issubset(approved):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="One or more requested sources are not approved.",
+        )
+    allowed = requested or approved
+    started = time.perf_counter()
+    query_id = f"rag-{uuid.uuid4()}"
+    try:
+        trace_id = traceparent.split("-")[1] if traceparent is not None else None
+        retrieved = _pipeline.search(
+            body.query,
+            trace_id=trace_id,
+            workflow_id=workflow_id,
+        )
+    except RAGError as exc:
+        logger.warning(
+            "search_rag_error",
+            query_id=query_id,
+            query_length=len(body.query),
+            trace_id=trace_id,
+            workflow_id=workflow_id,
+            error_type=type(exc).__name__,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Knowledge retrieval failed.",
+        ) from exc
+    except Exception as exc:
+        logger.error(
+            "search_unexpected_error",
+            query_id=query_id,
+            query_length=len(body.query),
+            trace_id=trace_id,
+            workflow_id=workflow_id,
+            error_type=type(exc).__name__,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error",
+        ) from exc
+
+    chunks: list[SearchChunkOut] = []
+    for chunk in retrieved:
+        source_id = _source_id(chunk.source)
+        if source_id not in allowed:
+            continue
+        excerpt = (chunk.parent_text or chunk.text).strip()[: settings.search_max_excerpt_chars]
+        if not excerpt:
+            continue
+        chunks.append(
+            SearchChunkOut(
+                citation_id=f"C{len(chunks) + 1}",
+                source_id=source_id,
+                page=chunk.page,
+                text=excerpt,
+            )
+        )
+        if len(chunks) >= body.max_chunks:
+            break
+    logger.info(
+        "search_ok",
+        query_id=query_id,
+        query_length=len(body.query),
+        trace_id=trace_id,
+        workflow_id=workflow_id,
+        result_count=len(chunks),
+        latency_ms=round((time.perf_counter() - started) * 1_000, 1),
+    )
+    return SearchResponse(query_id=query_id, chunks=chunks)
+
+
+def _source_id(source: str) -> str:
+    """Derive a stable public identifier from an ingested file path or URL."""
+    parsed_path = urlparse(source).path if "://" in source else source
+    candidate = Path(parsed_path).stem or Path(parsed_path).name or source
+    normalized = re.sub(r"[^A-Za-z0-9._-]+", "-", candidate).strip("-.").lower()
+    return normalized[:200] or "unknown-source"
 
 
 @app.get(

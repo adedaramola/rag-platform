@@ -33,8 +33,14 @@ test: test-unit
 eval:
 	pytest tests/e2e/test_eval.py -v --tb=short --no-cov
 
+benchmark:
+	rag-platform-benchmark --output reports/retrieval_benchmark.json
+
+load-test:
+	rag-platform-load-test --url $(URL) --output reports/load_test.json
+
 ingest:
-	stratum-ingest --source $(SOURCE)
+	rag-platform-ingest --source $(SOURCE)
 
 api:
 	uvicorn rag.api.main:app --reload --host 0.0.0.0 --port 8000
@@ -58,4 +64,5 @@ clean:
 	rm -rf .coverage htmlcov/ dist/ .mypy_cache/ .ruff_cache/ reports/ .chroma/
 
 .PHONY: install install-local-embed install-ui lint format typecheck test-unit \
-        test-integration test-e2e test eval ingest api ui docker-up docker-down ollama-pull ci clean
+        test-integration test-e2e test eval benchmark load-test ingest api ui docker-up \
+        docker-down ollama-pull ci clean

@@ -1,1 +1,1 @@
-"""FastAPI HTTP layer for the Stratum RAG pipeline."""
+"""FastAPI HTTP layer for the RAG Platform RAG pipeline."""

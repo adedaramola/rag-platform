@@ -2,17 +2,17 @@
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Central configuration for all Stratum components.
+    """Central configuration for all RAG Platform components.
 
-    All values can be overridden via environment variables prefixed with STRATUM_
-    or via a .env file. Example: STRATUM_STORE_BACKEND=weaviate
+    All values can be overridden via environment variables prefixed with RAG_PLATFORM_
+    or via a .env file. Example: RAG_PLATFORM_STORE_BACKEND=weaviate
     """
 
     # Store backend
@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 
     # Chroma settings (default backend — no Docker required)
     chroma_persist_dir: Path = Path(".chroma")
-    chroma_collection_name: str = "stratum"
+    chroma_collection_name: str = "rag-platform"
 
     # Weaviate settings (production backend)
     weaviate_host: str = "localhost"
@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     # Semantic cache
     # 'none'   — disabled (default, zero overhead)
     # 'memory' — in-memory LRU, lost on restart, no infrastructure required
-    # 'redis'  — Redis-backed, persistent; requires STRATUM_REDIS_URL
+    # 'redis'  — Redis-backed, persistent; requires RAG_PLATFORM_REDIS_URL
     cache_backend: Literal["none", "memory", "redis"] = "none"
     cache_similarity_threshold: float = 0.95  # cosine similarity required for a hit
     cache_max_size: int = 1000  # memory backend only: max entries before LRU eviction
@@ -82,9 +82,14 @@ class Settings(BaseSettings):
     # When set, all /query and /metrics requests must include X-API-Key: <value>.
     # Leave unset (default) in local dev — auth is skipped entirely when None.
     api_key: SecretStr | None = None
+    api_rate_limit: str = "10/minute"
+    approved_source_ids: list[
+        Annotated[str, Field(min_length=1, max_length=200, pattern=r"^[A-Za-z0-9._-]+$")]
+    ] = Field(default_factory=list, max_length=100)
+    search_max_excerpt_chars: int = Field(default=1_200, ge=100, le=2_000)
 
     model_config = SettingsConfigDict(
-        env_prefix="STRATUM_",
+        env_prefix="RAG_PLATFORM_",
         env_file=".env",
         env_file_encoding="utf-8",
     )

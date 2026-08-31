@@ -1,4 +1,4 @@
-"""Store factory. The single place that maps STRATUM_STORE_BACKEND to a concrete implementation.
+"""Store factory mapping RAG_PLATFORM_STORE_BACKEND to a concrete implementation.
 
 All downstream code works against DocumentStoreProtocol — never against a concrete class.
 Swapping backends requires one env var change, not a code change.
@@ -25,6 +25,6 @@ def get_store(settings: Settings) -> DocumentStoreProtocol:
         return WeaviateStore(host=settings.weaviate_host, port=settings.weaviate_port)
     raise StoreError(
         f"Unknown store backend: {settings.store_backend!r}. "
-        "Set STRATUM_STORE_BACKEND to 'chroma' or 'weaviate'.",
+        "Set RAG_PLATFORM_STORE_BACKEND to 'chroma' or 'weaviate'.",
         context={"store_backend": settings.store_backend},
     )

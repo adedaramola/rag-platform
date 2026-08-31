@@ -7,11 +7,11 @@
 # manager (AWS Secrets Manager, HashiCorp Vault) instead.
 
 aws_region   = "us-east-1"
-project_name = "stratum"
+project_name = "rag-platform"
 environment  = "prod"
 
 # Name of an existing EC2 key pair in your AWS account.
-# Create one: aws ec2 create-key-pair --key-name stratum-prod --query 'KeyMaterial' --output text > stratum-prod.pem
+# Create one: aws ec2 create-key-pair --key-name rag-platform-prod --query 'KeyMaterial' --output text > rag-platform-prod.pem
 # Store the .pem file OUTSIDE the project directory (e.g. ~/.ssh/).
 key_pair_name = "your-key-pair-name"
 
@@ -30,3 +30,10 @@ weaviate_version             = "1.27.0"
 anthropic_api_key = "sk-ant-..."
 openai_api_key    = "sk-proj-..."
 github_token      = "ghp_..."
+
+# Deployment source and benchmark-safe runtime defaults.
+github_ref       = "main"
+embed_backend    = "openai"
+cache_backend    = "memory"
+api_rate_limit   = "1000/minute"
+api_workers      = 1

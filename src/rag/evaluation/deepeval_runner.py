@@ -11,18 +11,19 @@ Why a local judge by default:
   At 200 golden questions x 4 metrics x every weekly run, hosted-model costs add
   up fast for a portfolio project. A local Ollama model (llama3.1:8b) gives ~85%
   agreement with GPT-4o-mini judging on standard RAG benchmarks at $0/run.
-  Set STRATUM_EVAL_JUDGE_BACKEND=openai when you need higher-fidelity scoring.
+  Set RAG_PLATFORM_EVAL_JUDGE_BACKEND=openai when you need higher-fidelity scoring.
 
 Threshold strategy:
   Initial thresholds are starting points — not validated baselines. Run eval
   >=3 times on a stable pipeline, average the scores, then set thresholds at
   (average - 0.05) to absorb LLM judge variance. Until baselines exist, leave
-  STRATUM_EVAL_WARN_ONLY=true so threshold misses log warnings without failing CI.
+  RAG_PLATFORM_EVAL_WARN_ONLY=true so threshold misses log warnings without failing CI.
 """
 
 from __future__ import annotations
 
 import datetime
+import importlib
 import json
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -64,25 +65,32 @@ class EvalResult:
 def build_judge(settings: Settings) -> Any:
     """Return the configured judge model instance.
 
-    Returns DeepEval's native OllamaModel (zero cost) by default; GPTModel when
-    STRATUM_EVAL_JUDGE_BACKEND=openai for higher-fidelity scoring.
+    Returns DeepEval's native OllamaModel (zero cost) by default; OpenAIModel
+    when RAG_PLATFORM_EVAL_JUDGE_BACKEND=openai for higher-fidelity scoring.
+    The implementation prefers the modern OpenAIModel class and falls back to
+    GPTModel for older DeepEval releases.
     """
     try:
-        from deepeval.models import GPTModel, OllamaModel  # noqa: PLC0415
+        deepeval_models = importlib.import_module("deepeval.models")
     except ImportError as exc:
-        raise ImportError("Install eval dependencies: pip install 'stratum[eval]'") from exc
+        raise ImportError("Install eval dependencies: pip install 'rag-platform[eval]'") from exc
 
     if settings.eval_judge_backend == "ollama":
-        return OllamaModel(
+        return deepeval_models.OllamaModel(
             model=settings.eval_judge_model,
             base_url=settings.eval_ollama_base_url,
         )
     if settings.eval_judge_backend == "openai":
         if settings.openai_api_key is None:
             raise ConfigurationError(
-                "STRATUM_OPENAI_API_KEY is required when eval_judge_backend=openai"
+                "RAG_PLATFORM_OPENAI_API_KEY is required when eval_judge_backend=openai"
             )
-        return GPTModel(
+
+        openai_model_cls = getattr(deepeval_models, "OpenAIModel", None)
+        if openai_model_cls is None:
+            openai_model_cls = deepeval_models.GPTModel
+
+        return openai_model_cls(
             model=settings.eval_judge_openai_model,
             api_key=settings.openai_api_key.get_secret_value(),
         )
@@ -184,7 +192,9 @@ class DeepEvalRunner:
         try:
             from deepeval.test_case import LLMTestCase  # noqa: PLC0415
         except ImportError as exc:
-            raise ImportError("Install eval dependencies: pip install 'stratum[eval]'") from exc
+            raise ImportError(
+                "Install eval dependencies: pip install 'rag-platform[eval]'"
+            ) from exc
 
         test_cases: list[Any] = []
         for qa in qa_pairs:
@@ -194,7 +204,11 @@ class DeepEvalRunner:
                 actual_output = output.get("actual_output", "")
                 retrieval_context = output.get("retrieval_context", [])
             except Exception as exc:
-                logger.warning("pipeline_fn_failed", question=question[:60], error=str(exc))
+                logger.warning(
+                    "pipeline_fn_failed",
+                    query_length=len(question),
+                    error_type=type(exc).__name__,
+                )
                 actual_output = ""
                 retrieval_context = []
 
@@ -226,7 +240,9 @@ class DeepEvalRunner:
                 FaithfulnessMetric,
             )
         except ImportError as exc:
-            raise ImportError("Install eval dependencies: pip install 'stratum[eval]'") from exc
+            raise ImportError(
+                "Install eval dependencies: pip install 'rag-platform[eval]'"
+            ) from exc
 
         # (key, class, threshold) — fresh instance created per task below
         metric_configs: list[tuple[str, Any, float]] = [

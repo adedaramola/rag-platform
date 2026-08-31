@@ -159,6 +159,35 @@ def test_pipeline_query_cache_miss_stores_result() -> None:
     mock_cache.set.assert_called_once_with([0.4, 0.5, 0.6], answer)
 
 
+def test_pipeline_search_runs_retrieval_without_generation_or_cache() -> None:
+    chunks = _make_chunks(2)
+    mock_retriever = MagicMock()
+    mock_retriever.retrieve.return_value = chunks
+    mock_generator = MagicMock()
+    mock_embedder = MagicMock()
+    mock_cache = MagicMock()
+
+    pipeline = RAGPipeline(
+        retriever=mock_retriever,
+        generator=mock_generator,
+        embedder=mock_embedder,
+        cache=mock_cache,
+    )
+
+    assert (
+        pipeline.search(
+            "vpn help",
+            trace_id="1234567890abcdef1234567890abcdef",
+            workflow_id="workflow-1",
+        )
+        == chunks
+    )
+    mock_retriever.retrieve.assert_called_once_with("vpn help")
+    mock_generator.generate.assert_not_called()
+    mock_embedder.embed.assert_not_called()
+    mock_cache.get.assert_not_called()
+
+
 def test_build_pipeline_wires_concrete_dependencies() -> None:
     """build_pipeline should assemble and return a fully wired RAGPipeline."""
     settings = Settings(

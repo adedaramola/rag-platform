@@ -1,7 +1,7 @@
 """CLI entrypoint for document ingestion.
 
 Zero business logic — orchestration only. All logic lives in the rag package.
-Entry point registered in pyproject.toml as: stratum-ingest = "rag.scripts.ingest:main"
+Entry point registered in pyproject.toml as: rag-platform-ingest = "rag.scripts.ingest:main"
 """
 
 from __future__ import annotations
@@ -70,9 +70,11 @@ def _resolve_sources(source: str) -> list[tuple[Any, Any]]:
 
 
 def main() -> None:
-    """CLI entry point for stratum-ingest."""
+    """CLI entry point for rag-platform-ingest."""
     parser = argparse.ArgumentParser(
-        description="Stratum document ingestion — loads, chunks, embeds, and indexes documents."
+        description=(
+            "RAG Platform document ingestion — loads, chunks, embeds, and indexes documents."
+        )
     )
     parser.add_argument(
         "--source",
@@ -140,7 +142,9 @@ def main() -> None:
     store.upsert_chunks(all_parents, embeddings=None)
     store.upsert_chunks(all_children, embeddings=child_embeddings)
 
-    all_child_chunks = [{"id": c.id, "text": c.text, **c.metadata} for c in all_children]
+    all_child_chunks = [
+        {"id": c.id, "text": c.text, "parent_id": c.parent_id, **c.metadata} for c in all_children
+    ]
     parent_count = len(all_parents)
     child_count = len(all_children)
     doc_count = sum(len(docs) for _, docs in loaded)
