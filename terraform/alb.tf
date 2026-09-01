@@ -2,16 +2,15 @@
 # Application Load Balancer
 #
 # Spans both public subnets for AZ redundancy.
-# Two listeners:
-#   :80   → API target group  (port 8000) — FastAPI
+# Three listeners:
+#   :80   → HTTPS redirect
+#   :443  → API target group  (port 8000) — FastAPI
 #   :8501 → UI  target group  (port 8501) — Streamlit chat interface
 #
 # Health checks:
 #   API: GET /health  (FastAPI liveness probe)
 #   UI:  GET /_stcore/health  (Streamlit built-in health endpoint)
 #
-# To add HTTPS: create an ACM certificate, add an aws_lb_listener on port 443,
-# and add an HTTP→HTTPS redirect on port 80.
 # ---------------------------------------------------------------------------
 
 resource "aws_lb" "main" {
@@ -54,6 +53,24 @@ resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.main.arn
   port              = 80
   protocol          = "HTTP"
+
+  default_action {
+    type = "redirect"
+
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+}
+
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.main.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = aws_acm_certificate_validation.rag.certificate_arn
 
   default_action {
     type             = "forward"

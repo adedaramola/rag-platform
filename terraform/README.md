@@ -9,7 +9,8 @@ Internet
    │
    ▼
 ALB (rag-platform-prod-alb)
-   ├── :80   → FastAPI  (port 8000)
+   ├── :80   → HTTPS redirect
+   ├── :443  → FastAPI  (port 8000)
    └── :8501 → Streamlit UI (port 8501)
    │
    ▼
@@ -31,6 +32,7 @@ S3 (rag-platform-prod-docs-*)
 - [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) configured (`aws configure`)
 - An EC2 key pair created in your target region
 - Anthropic API key, OpenAI API key, GitHub PAT (repo scope)
+- An existing public Route 53 zone for the HTTPS API hostname
 
 ## Deploy
 
@@ -39,7 +41,8 @@ cd terraform/
 
 # 1. Copy and populate the variables file
 cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars — fill in key_pair_name and all secrets
+# Edit terraform.tfvars — fill in key_pair_name, secrets, Route 53 names,
+# and the approved source identifiers used by /v1/search
 
 # 2. Initialise providers
 terraform init
@@ -54,13 +57,19 @@ terraform apply
 Terraform prints the live URLs on completion:
 
 ```
-api_endpoint             = "http://<alb-dns>/query"
-api_docs_url             = "http://<alb-dns>/docs"
+api_endpoint             = "https://rag.example.com/query"
+api_docs_url             = "https://rag.example.com/docs"
+search_endpoint          = "https://rag.example.com/v1/search"
+opsdesk_agent_api_key_secret_arn = "arn:aws:secretsmanager:..."
 ui_url                   = "http://<alb-dns>:8501"
 ssh_api                  = "ssh -i ~/.ssh/<key>.pem ec2-user@<ip>"
 ssh_weaviate             = "ssh -i ~/.ssh/<key>.pem ec2-user@<ip>"
 documents_bucket_name    = "rag-platform-prod-docs-<suffix>"
 ```
+
+The OpsDesk integration consumes only `search_base_url`, `approved_source_ids`, and the scoped
+Secrets Manager ARN. Do not print or copy the generated credential value. Grant the Agent role
+`secretsmanager:GetSecretValue` on that exact ARN.
 
 ## Ingest documents
 
@@ -90,9 +99,11 @@ sudo systemctl restart rag-platform-api rag-platform-ui
 | `vpc.tf` | VPC, two public subnets, internet gateway, and routing |
 | `security_groups.tf` | ALB, API, and Weaviate security group rules |
 | `alb.tf` | Application Load Balancer + target groups |
+| `dns.tf` | ACM certificate validation and Route 53 alias |
 | `ec2.tf` | API and Weaviate instances, EBS data volume, user-data scripts |
 | `iam.tf` | Instance profile and S3 read/write policy for the EC2 instances |
 | `s3.tf` | Documents bucket with versioning enabled |
+| `secrets.tf` | Generated scoped OpsDesk Agent credential in Secrets Manager |
 | `variables.tf` | All input variables with defaults and descriptions |
 | `outputs.tf` | URLs, IPs, SSH commands, bucket name |
 | `terraform.tfvars.example` | Template — copy to `terraform.tfvars` and fill in secrets |

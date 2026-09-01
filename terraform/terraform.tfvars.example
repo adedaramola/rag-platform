@@ -33,6 +33,11 @@ github_token      = "ghp_..."
 
 # Deployment source and benchmark-safe runtime defaults.
 github_ref       = "main"
+
+route53_zone_name = "example.com"
+rag_domain_name   = "rag.example.com"
+
+approved_source_ids = ["opsdesk-demo-runbook"]
 embed_backend    = "openai"
 cache_backend    = "memory"
 api_rate_limit   = "1000/minute"

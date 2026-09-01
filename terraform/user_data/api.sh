@@ -50,6 +50,8 @@ RAG_PLATFORM_WEAVIATE_HOST=${weaviate_host}
 RAG_PLATFORM_WEAVIATE_PORT=${weaviate_port}
 RAG_PLATFORM_ANTHROPIC_API_KEY=${anthropic_api_key}
 RAG_PLATFORM_OPENAI_API_KEY=${openai_api_key}
+RAG_PLATFORM_API_KEY=${api_key}
+RAG_PLATFORM_APPROVED_SOURCE_IDS='${approved_source_ids}'
 ENVEOF
 
 chown rag-platform:rag-platform "$REPO_DIR/.env"
