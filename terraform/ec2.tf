@@ -35,7 +35,7 @@ resource "aws_instance" "weaviate" {
 
 # Dedicated data volume — separate lifecycle from the instance
 resource "aws_ebs_volume" "weaviate_data" {
-  availability_zone = aws_instance.weaviate.availability_zone
+  availability_zone = aws_subnet.public[0].availability_zone
   size              = var.weaviate_data_volume_size_gb
   type              = "gp3"
   encrypted         = true
