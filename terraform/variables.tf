@@ -104,3 +104,31 @@ variable "api_workers" {
   type        = number
   default     = 1
 }
+
+variable "route53_zone_name" {
+  description = "Existing public Route 53 zone used for the authenticated RAG API hostname"
+  type        = string
+}
+
+variable "rag_domain_name" {
+  description = "HTTPS hostname for the authenticated RAG API"
+  type        = string
+
+  validation {
+    condition     = endswith(var.rag_domain_name, var.route53_zone_name)
+    error_message = "rag_domain_name must belong to route53_zone_name."
+  }
+}
+
+variable "approved_source_ids" {
+  description = "Stable source identifiers that the Agent-only /v1/search endpoint may return"
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = alltrue([
+      for source_id in var.approved_source_ids : can(regex("^[A-Za-z0-9._-]{1,200}$", source_id))
+    ])
+    error_message = "Approved source IDs must use 1-200 letters, numbers, dots, underscores, or hyphens."
+  }
+}

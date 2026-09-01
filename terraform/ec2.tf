@@ -66,15 +66,17 @@ resource "aws_instance" "api" {
   }
 
   user_data = base64encode(templatefile("${path.module}/user_data/api.sh", {
-    weaviate_host     = aws_instance.weaviate.private_ip
-    weaviate_port     = 8080
-    project_name      = var.project_name
-    anthropic_api_key = var.anthropic_api_key
-    openai_api_key    = var.openai_api_key
-    embed_backend     = var.embed_backend
-    cache_backend     = var.cache_backend
-    api_rate_limit    = var.api_rate_limit
-    api_workers       = var.api_workers
+    weaviate_host       = aws_instance.weaviate.private_ip
+    weaviate_port       = 8080
+    project_name        = var.project_name
+    anthropic_api_key   = var.anthropic_api_key
+    openai_api_key      = var.openai_api_key
+    embed_backend       = var.embed_backend
+    cache_backend       = var.cache_backend
+    api_rate_limit      = var.api_rate_limit
+    api_workers         = var.api_workers
+    api_key             = random_password.opsdesk_agent_api_key.result
+    approved_source_ids = jsonencode(var.approved_source_ids)
     # Authenticated clone URL (token stripped from git remote after clone)
     github_clone_url = "https://x-access-token:${var.github_token}@${replace(var.github_repo, "https://", "")}"
     github_repo      = var.github_repo

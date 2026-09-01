@@ -1,11 +1,11 @@
 output "api_endpoint" {
   description = "URL for the FastAPI query endpoint"
-  value       = "http://${aws_lb.main.dns_name}/query"
+  value       = "https://${var.rag_domain_name}/query"
 }
 
 output "api_docs_url" {
   description = "FastAPI interactive docs (Swagger UI)"
-  value       = "http://${aws_lb.main.dns_name}/docs"
+  value       = "https://${var.rag_domain_name}/docs"
 }
 
 output "ui_url" {
@@ -16,6 +16,31 @@ output "ui_url" {
 output "alb_dns_name" {
   description = "Raw DNS name of the Application Load Balancer"
   value       = aws_lb.main.dns_name
+}
+
+output "alb_arn_suffix" {
+  description = "Application Load Balancer ARN suffix for cross-platform CloudWatch metrics"
+  value       = aws_lb.main.arn_suffix
+}
+
+output "search_base_url" {
+  description = "HTTPS base URL consumed by the OpsDesk Agent"
+  value       = "https://${var.rag_domain_name}"
+}
+
+output "search_endpoint" {
+  description = "Authenticated retrieval-only endpoint consumed by the OpsDesk Agent"
+  value       = "https://${var.rag_domain_name}/v1/search"
+}
+
+output "opsdesk_agent_api_key_secret_arn" {
+  description = "Secrets Manager ARN for the scoped OpsDesk Agent RAG credential; not the value"
+  value       = aws_secretsmanager_secret.opsdesk_agent_api_key.arn
+}
+
+output "approved_source_ids" {
+  description = "Source identifiers allowed by the authenticated retrieval API"
+  value       = var.approved_source_ids
 }
 
 output "api_instance_public_ip" {

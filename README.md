@@ -149,6 +149,11 @@ Each response contains a request-local `query_id` and chunks with `citation_id`,
 optional `page`, and a bounded approved excerpt. Requests for sources outside the server allowlist
 are rejected. Raw queries and excerpts are excluded from application logs and traces.
 
+The AWS Terraform stack terminates TLS at `rag_domain_name`, generates the scoped service
+credential, stores it in Secrets Manager, and exposes only its ARN for the OpsDesk Agent role. The
+same stack injects `approved_source_ids` into the API runtime; the raw credential is never an
+output.
+
 ---
 
 ## Optional Backends
