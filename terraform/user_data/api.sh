@@ -8,11 +8,15 @@ exec > >(tee /var/log/rag-platform-bootstrap.log | logger -t rag-platform-api) 2
 echo "=== RAG Platform: API bootstrap starting ==="
 
 # ---------------------------------------------------------------------------
-# 1. System packages
+# 1. System packages and management agent
 # ---------------------------------------------------------------------------
 # curl-minimal is already on AL2023 — installing curl conflicts with it
 # python3.11-pip is not a valid AL2023 package; use ensurepip instead
-dnf install -y git python3.11
+dnf install -y \
+  "https://s3.${aws_region}.amazonaws.com/amazon-ssm-${aws_region}/latest/linux_amd64/amazon-ssm-agent.rpm" \
+  git \
+  python3.11
+systemctl enable --now amazon-ssm-agent
 python3.11 -m ensurepip --upgrade
 echo "Python $(python3.11 --version) installed"
 

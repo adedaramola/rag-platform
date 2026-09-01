@@ -6,6 +6,12 @@ exec > >(tee /var/log/rag-platform-bootstrap.log | logger -t rag-platform-weavia
 
 echo "=== RAG Platform: Weaviate bootstrap starting ==="
 
+# The minimal AL2023 image does not include SSM Agent. Install it explicitly so
+# the node remains operable without public SSH access.
+dnf install -y \
+  "https://s3.${aws_region}.amazonaws.com/amazon-ssm-${aws_region}/latest/linux_amd64/amazon-ssm-agent.rpm"
+systemctl enable --now amazon-ssm-agent
+
 # ---------------------------------------------------------------------------
 # 1. Mount the dedicated data EBS volume (/dev/xvdf or NVMe equivalent)
 #    On nitro-based instances, AWS maps /dev/xvdf → /dev/nvme1n1.

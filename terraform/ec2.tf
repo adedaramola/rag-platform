@@ -26,6 +26,7 @@ resource "aws_instance" "weaviate" {
 
   user_data = base64encode(templatefile("${path.module}/user_data/weaviate.sh", {
     weaviate_version = var.weaviate_version
+    aws_region       = var.aws_region
   }))
 
   tags = { Name = "${var.project_name}-${var.environment}-weaviate" }
@@ -77,6 +78,7 @@ resource "aws_instance" "api" {
     api_workers         = var.api_workers
     api_key             = random_password.opsdesk_agent_api_key.result
     approved_source_ids = jsonencode(var.approved_source_ids)
+    aws_region          = var.aws_region
     # Authenticated clone URL (token stripped from git remote after clone)
     github_clone_url = "https://x-access-token:${var.github_token}@${replace(var.github_repo, "https://", "")}"
     github_repo      = var.github_repo
