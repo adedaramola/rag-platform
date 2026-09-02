@@ -38,7 +38,9 @@ route53_zone_name = "example.com"
 rag_domain_name   = "rag.example.com"
 
 approved_source_ids = ["opsdesk-demo-runbook"]
-embed_backend    = "openai"
-cache_backend    = "memory"
-api_rate_limit   = "1000/minute"
-api_workers      = 1
+embed_backend      = "openai"
+embed_model_local  = "BAAI/bge-small-en-v1.5"
+embed_dimensions   = 1536 # use 384 with bge-small-en-v1.5
+cache_backend      = "memory"
+api_rate_limit     = "1000/minute"
+api_workers        = 1

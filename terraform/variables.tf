@@ -87,6 +87,23 @@ variable "embed_backend" {
   default     = "openai"
 }
 
+variable "embed_model_local" {
+  description = "Sentence Transformers model used when embed_backend is local"
+  type        = string
+  default     = "BAAI/bge-small-en-v1.5"
+}
+
+variable "embed_dimensions" {
+  description = "Embedding vector dimensions; must match the selected embedding model"
+  type        = number
+  default     = 1536
+
+  validation {
+    condition     = var.embed_dimensions > 0
+    error_message = "embed_dimensions must be greater than zero."
+  }
+}
+
 variable "cache_backend" {
   description = "Semantic cache backend used by the API"
   type        = string

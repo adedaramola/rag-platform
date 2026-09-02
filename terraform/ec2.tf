@@ -74,6 +74,8 @@ resource "aws_instance" "api" {
     anthropic_api_key   = var.anthropic_api_key
     openai_api_key      = var.openai_api_key
     embed_backend       = var.embed_backend
+    embed_model_local   = var.embed_model_local
+    embed_dimensions    = var.embed_dimensions
     cache_backend       = var.cache_backend
     api_rate_limit      = var.api_rate_limit
     api_workers         = var.api_workers

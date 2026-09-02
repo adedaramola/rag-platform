@@ -44,6 +44,8 @@ echo "Repo cloned to $REPO_DIR"
 cat > "$REPO_DIR/.env" << 'ENVEOF'
 RAG_PLATFORM_STORE_BACKEND=weaviate
 RAG_PLATFORM_EMBED_BACKEND=${embed_backend}
+RAG_PLATFORM_EMBED_MODEL_LOCAL=${embed_model_local}
+RAG_PLATFORM_EMBED_DIMENSIONS=${embed_dimensions}
 RAG_PLATFORM_CACHE_BACKEND=${cache_backend}
 RAG_PLATFORM_API_RATE_LIMIT=${api_rate_limit}
 ENVEOF
