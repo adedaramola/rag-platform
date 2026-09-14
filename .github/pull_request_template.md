@@ -15,4 +15,4 @@
 - [ ] `make typecheck` passes
 - [ ] `make test-unit` passes
 - [ ] New logic has unit tests
-- [ ] CHANGELOG.md updated
+- [ ] Relevant documentation updated

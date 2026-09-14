@@ -3,109 +3,86 @@
 [![CI](https://github.com/adedaramola/rag-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/adedaramola/rag-platform/actions/workflows/ci.yml)
 [![DeepEval](https://github.com/adedaramola/rag-platform/actions/workflows/eval.yml/badge.svg)](https://github.com/adedaramola/rag-platform/actions/workflows/eval.yml)
 
-A production-grade domain-specific RAG engine — ask questions against your documents and receive precise, citation-grounded answers.
+RAG Platform searches a document collection and returns information with source
+references. It supports both a standalone question-answering application and a
+retrieval service for other applications.
 
----
+I built it to give applications a reusable document search service, with source
+references and separate checks for retrieval quality and generated answers.
 
-## Architecture Overview
+In [OpsDesk](https://github.com/adedaramola/ops-platform), this service searches only
+approved documents. It returns excerpts and references to the background Agent; the
+[model gateway](https://github.com/adedaramola/multi-llm-platform) prepares the final
+draft, which remains subject to staff review.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         RAGPipeline                              │
-│                                                                  │
-│  Query ──► HybridRetriever ──────────────────────────────────►  │
-│               │                                                  │
-│               ├── Dense:  EmbedderProtocol → DocumentStore ANN  │
-│               ├── Sparse: BM25Okapi (in-store corpus)           │
-│               ├── Fuse:   RRF (K=60, Cormack et al. 2009)       │
-│               ├── Expand: child → parent context resolution     │
-│               └── Rerank: CrossEncoder ms-marco-MiniLM          │
-│                                                                  │
-│  Chunks ──► CitationGroundedGenerator ──────────────────────►   │
-│               │                                                  │
-│               ├── Context block: [src N] (source p.PAGE)        │
-│               ├── Claude API call with citation-enforcing prompt │
-│               └── Parse + validate [src N] markers              │
-│                                                                  │
-│  ◄──────────────────────────── CitedAnswer (answer + citations) │
-└─────────────────────────────────────────────────────────────────┘
+## Engineering decisions
 
-Document ingestion:
-  Source (PDF / URL / dir) → Loader → HierarchicalChunker
-  → BGEEmbedder / OpenAIEmbedder → DocumentStore (Chroma | Weaviate)
+- **Combine keyword and meaning-based search.** The service can find exact terms as well as related wording, then rerank the results.
+- **Retain the surrounding context.** It searches smaller passages and returns their broader document context where needed.
+- **Return traceable sources.** Results include document and page references when available; the OpsDesk endpoint checks an approved-source list.
+- **Measure search and answer quality separately.** Finding the right document does not establish that a generated answer is correct.
+
+## Measured results and limits
+
+The August 15, 2026 AWS benchmark used two PDFs and 58 queries, including 55 answerable
+queries. After reranking, the expected document was the first result for all 55
+answerable queries. The labels identify documents, so this result does not establish
+passage-level relevance or answer accuracy.
+
+The same benchmark exposed useful limitations: all three no-answer probes still
+returned results, and CPU reranking accounted for most retrieval time. A separate
+repeat-query test measured a warm median response of about 245 ms against about 9 seconds
+for cold requests. That comparison measures cache reuse on repeated questions.
+
+The September 2026 OpsDesk integration used a different embedding configuration and
+approved source set. The August benchmark is a dated measurement, not a score for every
+deployment. See [benchmark methods and results](docs/benchmarking.md),
+[answer evaluation](docs/evaluation.md), and the
+[connected deployment record](https://github.com/adedaramola/ops-platform/blob/main/VALIDATION.md).
+
+For local setup and deployment, start with [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md).
+
+## How search works
+
+```text
+Documents → Extract and split text → Store passages and search indexes
+                                             |
+Question → Keyword + meaning-based search → Rerank → Retrieve context
+                                                      |
+                                ┌─────────────────────┴───────────────────┐
+                                ▼                                         ▼
+                      /v1/search: excerpts                    /query: generated answer
+                      and source references                   with source references
 ```
 
 ---
 
 ## Stack
 
-| Layer | Default | Production | Rationale |
+| Layer | Local default | Alternative / deployment option | Purpose |
 |---|---|---|---|
 | Embedding | OpenAI text-embedding-3-small | BAAI/bge-large-en-v1.5 | Zero-infra default; BGE opt-in via `[local-embed]` |
-| Vector store | Chroma (in-process) | Weaviate 1.27.0 | Zero Docker for dev; HNSW tuning + gRPC for prod |
+| Vector store | Chroma (in-process) | Weaviate 1.27.0 | Local development or a separate vector service |
 | Retrieval fusion | BM25 + ANN → RRF (K=60) | Same | Parameter-free, robust to miscalibrated retrievers |
-| Re-ranker | cross-encoder/ms-marco-MiniLM-L-6-v2 | Same | Strong precision at low latency (~50ms CPU) |
+| Re-ranker | cross-encoder/ms-marco-MiniLM-L-6-v2 | Same | Reorders candidates; measured latency depends on hardware |
 | LLM | claude-sonnet-4-6 | Same | Citation-enforcing prompt, structured output |
 | Tracing | Langfuse (opt-in no-op) | Langfuse cloud | Set `RAG_PLATFORM_LANGFUSE_SECRET_KEY` to enable; system runs identically without it |
-| API | FastAPI + uvicorn | Same | `/query` endpoint, `/health` liveness probe |
+| API | FastAPI + uvicorn | Same | `/query` for answers, `/v1/search` for retrieval, `/health` for liveness |
 | UI | Streamlit | Same | Chat interface with citation rendering |
 | Eval | DeepEval + Ollama judge | Same | Pytest-native, zero API cost for local judge |
 
 ---
 
-## Local Quickstart
+## Local setup
 
-### Prerequisites
-- Python 3.11+
-- An Anthropic API key
+Follow [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md), RAG-01 through RAG-06, to
+install the service, configure embeddings, ingest an approved document, and check the
+API. RAG-07 covers evaluation and RAG-08 through RAG-10 cover AWS deployment.
 
-### 1. Clone and install
+Once configured, `make api` starts the API on port 8000 and `make ui` starts the
+optional chat interface on port 8501. The examples below describe the application API.
 
-```bash
-git clone https://github.com/adedaramola/rag-platform.git
-cd rag-platform
-pip install -e ".[dev]"
-```
-
-### 2. Configure
-
-```bash
-# .env (create in the rag-platform/ directory)
-RAG_PLATFORM_ANTHROPIC_API_KEY=sk-ant-...
-
-# Optional — defaults to OpenAI embeddings if omitted
-RAG_PLATFORM_OPENAI_API_KEY=sk-proj-...
-```
-
-### 3. Ingest documents
-
-```bash
-# Single PDF
-rag-platform-ingest --source /path/to/document.pdf
-
-# Directory of PDFs
-rag-platform-ingest --source /path/to/docs/
-
-# Web page
-rag-platform-ingest --source https://example.com/page
-```
-
-### 4. Start the API
-
-```bash
-make api
-# → FastAPI running at http://localhost:8000
-# → Docs at http://localhost:8000/docs
-```
-
-### 5. Start the UI
-
-```bash
-make ui
-# → Streamlit running at http://localhost:8501
-```
-
-### 6. Query via Python
+### Query via Python
 
 ```python
 from rag.pipeline import build_pipeline
@@ -118,7 +95,7 @@ for c in result.citations:
     print(f"  [{c.index}] {c.source} p.{c.page}")
 ```
 
-### 7. Query via API
+### Query via API
 
 ```bash
 curl -X POST http://localhost:8000/query \
@@ -216,86 +193,17 @@ latency), and end-to-end query spans.
 
 ---
 
-## AWS Deployment
+## AWS deployment
 
-The `terraform/` directory provisions a production-ready deployment on AWS.
+This repository owns its AWS deployment: an API service on EC2, a separate private
+Weaviate service, document storage in S3, and a load balancer. RAG runs independently
+of the OpsDesk EKS cluster. The connected deployment uses HTTPS and a scoped service
+credential stored in Secrets Manager.
 
-### Infrastructure
-
-```
-Internet
-   │
-   ▼
-ALB (rag-platform-prod-alb)
-   ├── :80   → FastAPI  (port 8000)
-   └── :8501 → Streamlit UI (port 8501)
-   │
-   ▼
-EC2 t3.medium (rag-platform-prod-api)
-   ├── rag-platform-api.service  (uvicorn, 2 workers)
-   └── rag-platform-ui.service   (streamlit)
-   │
-   ▼ (private network)
-EC2 t3.medium (rag-platform-prod-weaviate)
-   └── Weaviate 1.27.0 (Docker, 20GB EBS data volume)
-
-S3 (rag-platform-prod-docs-*)
-   └── Raw document storage
-```
-
-### Requirements
-
-- AWS CLI configured (`aws configure`)
-- Terraform >= 1.5
-- An SSH key pair created in AWS EC2
-
-### Deploy
-
-```bash
-cd terraform/
-
-# Copy and fill in secrets
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars — add API keys, key pair name, GitHub token
-
-terraform init
-terraform apply
-```
-
-Terraform outputs the live URLs when complete:
-
-```
-api_endpoint = "http://<alb-dns>/query"
-api_docs_url = "http://<alb-dns>/docs"
-ui_url       = "http://<alb-dns>:8501"
-```
-
-### Ingest documents on AWS
-
-```bash
-# 1. Upload PDF to S3
-aws s3 cp my-document.pdf s3://$(terraform output -raw documents_bucket_name)/raw/
-
-# 2. SSH into the API instance
-ssh -i ~/.ssh/<key>.pem ec2-user@$(terraform output -raw api_instance_public_ip)
-
-# 3. Download and ingest
-sudo aws s3 cp s3://<bucket>/raw/my-document.pdf /opt/rag-platform/data/raw/my-document.pdf
-sudo chown rag-platform:rag-platform /opt/rag-platform/data/raw/my-document.pdf
-sudo -u rag-platform bash -c 'cd /opt/rag-platform && /opt/rag-platform/.venv/bin/rag-platform-ingest \
-  --source /opt/rag-platform/data/raw/my-document.pdf'
-
-# 4. Restart services to pick up the new BM25 corpus
-sudo systemctl restart rag-platform-api rag-platform-ui
-```
-
-### Tear down
-
-```bash
-terraform destroy
-```
-
----
+Use [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md) for setup and verification, and
+[terraform/README.md](terraform/README.md) for infrastructure details. For the complete
+four-service deployment order, start with the
+[OpsDesk portfolio guide](https://github.com/adedaramola/ops-platform/blob/main/PORTFOLIO_IMPLEMENTATION_GUIDE.md).
 
 ## Development Workflow
 
@@ -339,7 +247,7 @@ rag-platform/
 │   ├── exceptions.py         # Domain exception hierarchy
 │   └── pipeline.py           # RAGPipeline + build_pipeline() factory
 ├── tests/
-│   ├── unit/                 # No network, no Docker — fast (94 tests)
+│   ├── unit/                 # No network or Docker dependencies
 │   ├── integration/          # Chroma: no Docker; Weaviate: skipped without Docker
 │   └── e2e/                  # DeepEval gate (weekly CI schedule)
 ├── terraform/                # AWS infrastructure (EC2, ALB, Weaviate, S3)
@@ -351,22 +259,12 @@ rag-platform/
 
 ---
 
-## Implementation Phases
-
-| Phase | Scope | Status |
-|---|---|---|
-| **Phase 1** | Foundation: config, exceptions, interfaces | ✅ Complete |
-| **Phase 2** | Stores, ingestion, retrieval, generation, unit tests | ✅ Complete |
-| **Phase 3** | FastAPI, Streamlit UI, AWS deployment, DeepEval gate | ✅ Complete |
-| **Phase 4** | Golden dataset curation, baseline establishment, eval gate activation | 🔄 In progress |
-| **Phase 5** | Learned fusion weights, streaming responses, multi-tenancy | 📋 Planned |
-
----
-
 ## Evaluation
 
-DeepEval runs **weekly** (Monday 06:00 UTC) and on manual trigger — not on every PR.
-Uses a local Ollama judge by default (zero API cost). See [docs/evaluation.md](docs/evaluation.md).
+The DeepEval workflow is configured for weekly and manual runs. CI uses an OpenAI
+judge and currently reports threshold failures as warnings; a successful workflow
+does not necessarily mean all quality thresholds passed. Local evaluation defaults
+to an Ollama judge. See [docs/evaluation.md](docs/evaluation.md) for results and interpretation.
 
 ```bash
 # Pull the judge model
@@ -382,13 +280,13 @@ make eval
 
 | # | Decision | Status |
 |---|---|---|
-| [ADR-001](docs/architecture.md#adr-001) | Hierarchical chunking (parent/child) | Accepted |
-| [ADR-002](docs/architecture.md#adr-002) | Dual store backend (Chroma + Weaviate) | Accepted |
-| [ADR-003](docs/architecture.md#adr-003) | Separate parent/child collections | Accepted |
-| [ADR-004](docs/architecture.md#adr-004) | BM25 corpus co-located with vector store | Accepted |
-| [ADR-005](docs/architecture.md#adr-005) | Drop `unstructured` dependency | Accepted |
-| [ADR-006](docs/architecture.md#adr-006) | Citation grounding enforced at generation time | Accepted |
-| [ADR-007](docs/architecture.md#adr-007) | DeepEval over RAGAS with local Ollama judge | Accepted |
+| [ADR-001](docs/architecture.md#adr-001-hierarchical-chunking-over-flat-chunking) | Hierarchical chunking (parent/child) | Accepted |
+| [ADR-002](docs/architecture.md#adr-002-dual-store-backend-chroma-default-weaviate-production) | Dual store backend (Chroma + Weaviate) | Accepted |
+| [ADR-003](docs/architecture.md#adr-003-separate-parent-and-child-collections) | Separate parent/child collections | Accepted |
+| [ADR-004](docs/architecture.md#adr-004-bm25-corpus-co-located-with-vector-store) | BM25 corpus co-located with vector store | Accepted |
+| [ADR-005](docs/architecture.md#adr-005-drop-unstructured-as-a-dependency) | Drop `unstructured` dependency | Accepted |
+| [ADR-006](docs/architecture.md#adr-006-citation-grounding-enforced-at-generation-time) | Citation grounding enforced at generation time | Accepted |
+| [ADR-007](docs/architecture.md#adr-007-deepeval-over-ragas-with-a-local-ollama-judge) | DeepEval over RAGAS with local Ollama judge | Accepted |
 
 ---
 

@@ -127,16 +127,16 @@ and increase contributor friction. It is also overkill for the initial scope: PD
 web pages.
 
 **Decision:**
-Use `pypdf` for PDFs and `httpx + BeautifulSoup` for web content. No `unstructured`.
-If complex document formats (docx, pptx, scanned images) are needed in the future,
-add `unstructured` as a pinned optional extra at that time.
+Use format-specific loaders: `pypdf` for PDFs, `python-docx` for Word documents,
+plain-text loading, and `httpx + BeautifulSoup` for web content. The implementation
+does not depend on `unstructured`.
 
 **Consequences:**
 - ✅ Stable, lightweight dependency surface
 - ✅ Fast CI installs (no system library dependencies)
 - ✅ No surprise API breaks between minor versions
 - ❌ No OCR support for scanned PDFs
-- ❌ No Office format (docx, pptx) support out of the box
+- ❌ PowerPoint ingestion is not implemented; Word (`.docx`) is supported
 
 ---
 

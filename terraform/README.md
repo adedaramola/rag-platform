@@ -1,6 +1,8 @@
 # RAG Platform — AWS Infrastructure
 
-Provisions a production-ready two-tier deployment on AWS using Terraform.
+Defines the EC2, storage, network, and HTTPS resources for the RAG portfolio deployment.
+For the setup and deployment sequence, use [IMPLEMENTATION_GUIDE.md](../IMPLEMENTATION_GUIDE.md#rag-08--validate-the-terraform-package).
+This document covers the resource layout and host operations.
 
 ## Infrastructure
 
@@ -34,54 +36,33 @@ S3 (rag-platform-prod-docs-*)
 - Anthropic API key, OpenAI API key, GitHub PAT (repo scope)
 - An existing public Route 53 zone for the HTTPS API hostname
 
-## Deploy
+## Deployment and integration outputs
 
-```bash
-cd terraform/
+Use [RAG-08 through RAG-10](../IMPLEMENTATION_GUIDE.md#rag-08--validate-the-terraform-package)
+for configuration validation, a reviewed deployment plan, and service verification.
 
-# 1. Copy and populate the variables file
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars — fill in key_pair_name, secrets, Route 53 names,
-# and the approved source identifiers used by /v1/search
-
-# 2. Initialise providers
-terraform init
-
-# 3. Preview the plan
-terraform plan
-
-# 4. Apply
-terraform apply
-```
-
-Terraform prints the live URLs on completion:
-
-```
-api_endpoint             = "https://rag.example.com/query"
-api_docs_url             = "https://rag.example.com/docs"
-search_endpoint          = "https://rag.example.com/v1/search"
-opsdesk_agent_api_key_secret_arn = "arn:aws:secretsmanager:..."
-ui_url                   = "http://<alb-dns>:8501"
-ssh_api                  = "ssh -i ~/.ssh/<key>.pem ec2-user@<ip>"
-ssh_weaviate             = "ssh -i ~/.ssh/<key>.pem ec2-user@<ip>"
-documents_bucket_name    = "rag-platform-prod-docs-<suffix>"
-```
-
-The OpsDesk integration consumes only `search_base_url`, `approved_source_ids`, and the scoped
-Secrets Manager ARN. Do not print or copy the generated credential value. Grant the Agent role
-`secretsmanager:GetSecretValue` on that exact ARN.
+The OpsDesk integration uses `search_base_url`, `approved_source_ids`,
+`opsdesk_agent_api_key_secret_arn`, and `alb_arn_suffix`. The credential output is a
+Secrets Manager ARN. Grant the Agent role access to that specific secret without
+copying its value into an overlay.
 
 ## Ingest documents
 
+Start in the local `terraform` directory with the deployed state initialized. Steps 1–2
+run locally; steps 3–4 run on the API host. Exit the remote session before running
+further Terraform commands.
+
 ```bash
 # 1. Upload to S3
-aws s3 cp my-doc.pdf s3://$(terraform output -raw documents_bucket_name)/raw/
+DOCUMENTS_BUCKET=$(terraform output -raw documents_bucket_name)
+aws s3 cp my-doc.pdf "s3://$DOCUMENTS_BUCKET/raw/"
 
 # 2. SSH into the API instance
 $(terraform output -raw ssh_api)
 
-# 3. Download and ingest
-sudo aws s3 cp s3://$(terraform output -raw documents_bucket_name)/raw/my-doc.pdf \
+# 3. On the API host, use the bucket name returned in step 1.
+DOCUMENTS_BUCKET="<bucket-name-from-step-1>"
+sudo aws s3 cp "s3://$DOCUMENTS_BUCKET/raw/my-doc.pdf" \
   /opt/rag-platform/data/raw/my-doc.pdf
 sudo chown rag-platform:rag-platform /opt/rag-platform/data/raw/my-doc.pdf
 sudo -u rag-platform bash -c \
